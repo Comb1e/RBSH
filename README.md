@@ -1,5 +1,6 @@
-# Agent Harness — TypeScript Sample
+# RBSH - Agent Harness
 
+Most coded by Claude.
 A production-oriented agent sample built on the **OpenAI**, demonstrating core **harness engineering**
 patterns from Anthropic's published research. Currently not support anthropic
 
@@ -20,10 +21,7 @@ npm install
 # Set your API key
 export ANTHROPIC_API_KEY=sk-ant-...
 
-# Run with the default task
-npm start
-
-# Run with a custom task
+# Run
 npx tsx main.ts
 ```
 
@@ -86,7 +84,7 @@ User task
 ## Key files
 
 ```
-agent.ts       — Main harness orchestrator + all three agents
+main.ts       — Main harness orchestrator + all three agents
 package.json   — Dependencies
 README.md      — This file
 ```

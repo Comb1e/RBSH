@@ -6,4 +6,4 @@ import { runHarness } from "@/agent";
 // ---------------------------------------------------------------------------
 
 const provider = createProvider();
-runHarness(provider, "写一份主成分分析的 python 代码");
+runHarness(provider, "你可以做什么");
