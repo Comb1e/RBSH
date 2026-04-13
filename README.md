@@ -2,7 +2,7 @@
 
 Most coded by Claude.
 A production-oriented agent sample built on the **OpenAI**, demonstrating core **harness engineering**
-patterns from Anthropic's published research. Currently not support anthropic
+patterns from Anthropic's published research. Currently not support anthropic.
 
 ---
 
@@ -19,7 +19,7 @@ cp .env.example .env
 npm install
 
 # Set your API key
-export ANTHROPIC_API_KEY=sk-ant-...
+OPENAI_API_KEY=sk-..
 
 # Run
 npx tsx main.ts
