@@ -4,8 +4,8 @@ import {
   LLMCompletionResult,
   UnifiedAgentOptions,
   UnifiedAgentPrompt,
-} from "@/types";
-import { env } from "../config/env";
+} from "@/types/index.js";
+import { env } from "../config/env.js";
 
 export class AnthropicProvider implements LLMProvider {
   private client: Anthropic;

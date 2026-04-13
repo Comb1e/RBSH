@@ -1,7 +1,7 @@
-import { env } from "../config/env";
-import { OpenAIProvider } from "../providers/openai";
-import { AnthropicProvider } from "../providers/anthropic";
-import { LLMProvider } from "@/types";
+import { env } from "../config/env.js";
+import { OpenAIProvider } from "../providers/openai.js";
+import { AnthropicProvider } from "../providers/anthropic.js";
+import { LLMProvider } from "@/types/index.js";
 
 /**
  * Factory function to create LLM provider instance based on runtime configuration.

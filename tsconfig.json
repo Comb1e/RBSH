@@ -1,13 +1,13 @@
 {
   "compilerOptions": {
     "baseUrl": ".",
+    "types": ["node"],
     "paths": {
-      "@/types": ["types"],
-      "@/providers": ["providers"],
-      "@/prompts": ["prompts"],
-      "@/agent": ["agent"]
+      "@/*": ["./*"]
     },
-    "moduleResolution": "node",
+    "module": "Node16",
+    "moduleResolution": "Node16",
+    "target": "es2020",
     "esModuleInterop": true,
     "strict": true
   }

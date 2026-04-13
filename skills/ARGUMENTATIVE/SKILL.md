@@ -1,12 +1,14 @@
 ---
-name: TEXTING
+name: ARGUMENTATIVE
 description: A thinking and writing process of fixing or generating text, including argumentative essay, prose, novel, etc.
 ---
 
 # Core
+
 1. Avoid using double quotation marks.
 
 # User Preferences
+
 1. Save the output text in .md file.
 
 # Argumentative Essay
@@ -21,18 +23,18 @@ Before writing a single word, interrogate the prompt deeply. Ask yourself:
 - What is **my position**, and can I defend it with evidence?
 - Who is my **audience**, and what do they already believe?
 
-A strong argumentative essay takes a *specific, contestable claim* — not a vague observation. "Social media affects teenagers" is an observation. "Social media platforms should be legally prohibited for users under 16" is an argument.
+A strong argumentative essay takes a _specific, contestable claim_ — not a vague observation. "Social media affects teenagers" is an observation. "Social media platforms should be legally prohibited for users under 16" is an argument.
 
 ---
 
 ### 2. Map the Argumentative Landscape
 
-Think like a debater preparing for *both sides*. Create a two-column map:
+Think like a debater preparing for _both sides_. Create a two-column map:
 
-| **Your Position (Pro)** | **Opposition (Con)** |
-|---|---|
-| List your strongest reasons | List the strongest objections |
-| Identify supporting evidence | Anticipate counterarguments |
+| **Your Position (Pro)**      | **Opposition (Con)**               |
+| ---------------------------- | ---------------------------------- |
+| List your strongest reasons  | List the strongest objections      |
+| Identify supporting evidence | Anticipate counterarguments        |
 | Note where your case is weak | Find where opponents are also weak |
 
 This exercise does two things: it **stress-tests your thesis** before you commit to it, and it arms you with material for rebuttals. If you can't articulate the opposing view charitably, your argument will be shallow.
@@ -47,8 +49,8 @@ A thesis is not a topic sentence — it's a **claim + reasoning skeleton**. A st
 - **Why** is it true?
 - **So what** — why does it matter?
 
-**Weak thesis:** *"Gun control is an important issue."*
-**Strong thesis:** *"Mandatory universal background checks would reduce gun violence without infringing on constitutional rights, because closing the private-sale loophole removes access from the highest-risk buyers while leaving lawful ownership intact."*
+**Weak thesis:** _"Gun control is an important issue."_
+**Strong thesis:** _"Mandatory universal background checks would reduce gun violence without infringing on constitutional rights, because closing the private-sale loophole removes access from the highest-risk buyers while leaving lawful ownership intact."_
 
 Stress-test it: Can someone reasonably disagree? If not, it's not an argument — it's a fact.
 
@@ -61,6 +63,7 @@ Stress-test it: Can someone reasonably disagree? If not, it's not an argument �
 There is no single "correct" structure. Choose based on your audience and complexity:
 
 **Classical (Aristotelian) Structure** — Best for clear, direct persuasion:
+
 1. Introduction + Thesis
 2. Background / Context
 3. Argument Body (your strongest claims)
@@ -68,6 +71,7 @@ There is no single "correct" structure. Choose based on your audience and comple
 5. Conclusion
 
 **Rogerian Structure** — Best for divisive topics where the audience is hostile:
+
 1. Introduction of the problem
 2. Fair, generous summary of the opposing view
 3. Statement of your position
@@ -75,6 +79,7 @@ There is no single "correct" structure. Choose based on your audience and comple
 5. Propose a compromise or synthesis
 
 **Toulmin Structure** — Best for academic and logical rigor:
+
 - **Claim** → What you assert
 - **Grounds** → The evidence
 - **Warrant** → The logical bridge between evidence and claim
@@ -106,31 +111,33 @@ Avoid generic openings ("Since the dawn of time…"). Instead, open with:
 - A **provocative question** that the essay will answer
 - A **common misconception** you're about to dismantle
 
-Then narrow from the hook → context → thesis in a logical funnel. The thesis should feel *earned*, not dropped in.
+Then narrow from the hook → context → thesis in a logical funnel. The thesis should feel _earned_, not dropped in.
 
 ---
 
 ### 7. Construct Each Body Paragraph on the PEEL or TIAA Framework
 
 **PEEL:**
+
 - **P**oint — State the argument of this paragraph
 - **E**vidence — Supply specific facts, data, examples, or quotes
-- **E**xplain — Analyze *why* this evidence supports your point
+- **E**xplain — Analyze _why_ this evidence supports your point
 - **L**ink — Connect back to the thesis or transition forward
 
 **TIAA (for more analytical depth):**
+
 - **T**opic sentence
 - **I**llustration (evidence)
 - **A**nalysis (your interpretation)
 - **A**pplication (how this advances the thesis)
 
-The most common student error is presenting evidence without analysis — letting the quote "speak for itself." It never does. *You* must do the intellectual work of explaining significance.
+The most common student error is presenting evidence without analysis — letting the quote "speak for itself." It never does. _You_ must do the intellectual work of explaining significance.
 
 ---
 
 ### 8. Handle Counterarguments with the ACE Method
 
-Engaging opposing views isn't weakness — it's the mark of intellectual honesty and actually *strengthens* your credibility (ethos). Use ACE:
+Engaging opposing views isn't weakness — it's the mark of intellectual honesty and actually _strengthens_ your credibility (ethos). Use ACE:
 
 - **A**cknowledge — State the counterargument fairly and fully. Don't strawman it.
 - **C**oncede (if warranted) — Admit any partial truth. ("It is true that X has merit in certain contexts…")
@@ -142,11 +149,11 @@ This transforms the essay from a one-sided rant into a reasoned, sophisticated a
 
 ### 9. Use the Three Rhetorical Appeals in Balance
 
-| Appeal | What It Does | Risk If Overused |
-|---|---|---|
-| **Logos** (logic/evidence) | Builds rational credibility | Can feel cold or inaccessible |
-| **Ethos** (credibility/authority) | Establishes trust in you as a writer | Can feel arrogant or name-droppy |
-| **Pathos** (emotion/values) | Creates urgency and human connection | Can feel manipulative or melodramatic |
+| Appeal                            | What It Does                         | Risk If Overused                      |
+| --------------------------------- | ------------------------------------ | ------------------------------------- |
+| **Logos** (logic/evidence)        | Builds rational credibility          | Can feel cold or inaccessible         |
+| **Ethos** (credibility/authority) | Establishes trust in you as a writer | Can feel arrogant or name-droppy      |
+| **Pathos** (emotion/values)       | Creates urgency and human connection | Can feel manipulative or melodramatic |
 
 Strong argumentative essays weave all three. A purely emotional argument is propaganda. A purely logical one is a report. The balance is the art.
 
@@ -161,7 +168,7 @@ Weak conclusions merely restate the thesis. Strong conclusions do one or more of
 - **Pose a forward-looking question** — leave the reader with productive tension
 - **Return to the opening** — create structural symmetry by echoing your hook with new meaning
 
-The conclusion should make the reader feel that something is at stake — that your argument *matters beyond the page*.
+The conclusion should make the reader feel that something is at stake — that your argument _matters beyond the page_.
 
 ---
 
@@ -182,7 +189,7 @@ Before finalizing, scan for common reasoning errors:
 
 ### 12. The "Devil's Advocate" Read-Through
 
-After a draft is complete, read it *as your most skeptical critic*. At every claim, ask: *"Says who? So what? What's the proof? What about X?"* Any paragraph that can't survive this scrutiny needs strengthening.
+After a draft is complete, read it _as your most skeptical critic_. At every claim, ask: _"Says who? So what? What's the proof? What about X?"_ Any paragraph that can't survive this scrutiny needs strengthening.
 
 ---
 

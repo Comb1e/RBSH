@@ -3,8 +3,8 @@
 // Decomposes the user task into a structured step list.
 // ---------------------------------------------------------------------------
 
-import type { LLMProvider } from "@/types";
-import { getPlannerPrompt } from "@/prompts";
+import type { LLMProvider } from "@/types/index.js";
+import { getPlannerPrompt } from "@/prompts/index.js";
 
 export async function runPlanner(
   provider: LLMProvider,

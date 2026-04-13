@@ -4,9 +4,9 @@
 // Keeping the evaluator separate prevents the "self-praise" failure mode.
 // ---------------------------------------------------------------------------
 
-import type { EvaluationResult, LLMProvider } from "@/types";
-import { getEvaluatorPrompt } from "@/prompts";
-import { env } from "../config/env";
+import type { EvaluationResult, LLMProvider } from "@/types/index.js";
+import { getEvaluatorPrompt } from "@/prompts/index.js";
+import { env } from "../config/env.js";
 
 export async function runEvaluator(
   provider: LLMProvider,

@@ -1,11 +1,11 @@
-import type { UnifiedAgentPrompt } from "@/types";
+import type { UnifiedAgentPrompt } from "@/types/index.js";
 
 export function getEvaluatorPrompt(
   task: string,
   output: string
 ): UnifiedAgentPrompt {
   const systemPrompt = `
-    You are a strict code reviewer and evaluator. Be skeptical and demand high quality.
+    You are a strict project reviewer and evaluator. Be skeptical and demand high quality.
 
     Grade the output below against these four criteria (2.5 points each, total 10):
     1. Correctness   — Does the code solve the stated task accurately?

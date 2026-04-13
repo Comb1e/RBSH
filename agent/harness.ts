@@ -3,12 +3,11 @@
 // Runs Planner → (Generator ↔ Evaluator) loop over each planned step
 // ---------------------------------------------------------------------------
 
-import { OpenAIProvider, AnthropicProvider } from "@/providers";
-import { runPlanner } from "./planner";
-import { runGenerator } from "./generator";
-import { runEvaluator } from "./evaluator";
-import type { HandoffArtifact, LLMProvider } from "types/agent";
-import { env } from "../config/env";
+import { runPlanner } from "./planner.js";
+import { runGenerator } from "./generator.js";
+import { runEvaluator } from "./evaluator.js";
+import type { HandoffArtifact, LLMProvider } from "@/types//index.js";
+import { env } from "../config/env.js";
 
 // ---------------------------------------------------------------------------
 // Harness: Generator ↔ Evaluator loop
@@ -74,7 +73,7 @@ export async function runHarness(
   userTask: string
 ): Promise<void> {
   console.log("═".repeat(60));
-  console.log("  AGENT HARNESS — TypeScript + Claude Agent SDK");
+  console.log("RBSH");
   console.log("═".repeat(60));
   console.log(`\nUser task: ${userTask}\n`);
 

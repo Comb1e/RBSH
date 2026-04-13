@@ -5,8 +5,8 @@
 // fresh session — the handoff artifact carries state forward.
 // ---------------------------------------------------------------------------
 
-import type { HandoffArtifact, LLMProvider } from "types/agent";
-import { getGeneratorPrompt } from "prompts/generator";
+import type { HandoffArtifact, LLMProvider } from "@/types/index.js";
+import { getGeneratorPrompt } from "../prompts/generator.js";
 
 export async function runGenerator(
   provider: LLMProvider,

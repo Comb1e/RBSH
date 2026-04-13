@@ -1,7 +1,11 @@
 import OpenAI from "openai";
-import { LLMProvider, LLMCompletionResult, UnifiedAgentPrompt } from "@/types";
-import { env } from "../config/env";
-import { tools } from "../tools/weather";
+import {
+  LLMProvider,
+  LLMCompletionResult,
+  UnifiedAgentPrompt,
+} from "@/types/index.js";
+import { env } from "../config/env.js";
+import { tools } from "../tools/weather.js";
 
 export class OpenAIProvider implements LLMProvider {
   private client: OpenAI;
