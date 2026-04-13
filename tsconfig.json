@@ -1,0 +1,14 @@
+{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@/types": ["types"],
+      "@/providers": ["providers"],
+      "@/prompts": ["prompts"],
+      "@/agent": ["agent"]
+    },
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "strict": true
+  }
+}

@@ -1,0 +1,27 @@
+{
+    "name": "agent-harness",
+    "version": "1.0.0",
+    "description": "TypeScript agent sample using Claude Agent SDK with harness engineering patterns",
+    "type": "module",
+    "scripts": {
+        "start": "npx tsx agent.ts",
+        "start:task": "npx tsx agent.ts \"$TASK\""
+    },
+    "dependencies": {
+        "@anthropic-ai/claude-agent-sdk": "^0.2.101",
+        "@anthropic-ai/sdk": "^0.86.1",
+        "@langchain/core": "^1.1.39",
+        "dotenv": "^17.4.1",
+        "openai": "^6.34.0",
+        "zod": "^4.3.6"
+    },
+    "devDependencies": {
+        "@types/node": "^22.19.17",
+        "ts-node": "^10.9.2",
+        "tsx": "^4.21.0",
+        "typescript": "^5.9.3"
+    },
+    "engines": {
+        "node": ">=20.0.0"
+    }
+}
