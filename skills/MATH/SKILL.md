@@ -11,6 +11,7 @@ description: >
 ---
 
 # Output
+
 The output language should be markdown and suffix should be .md
 
 # Math Problem-Solving Paradigm
@@ -38,7 +39,7 @@ Rushing to computation is the most common error. The paradigm below enforces a d
 3. **Restate in plain language.** Write one or two sentences explaining the problem as if describing it to someone who hasn't seen it. If you can't do this, you don't yet understand it.
 4. **Note what is given vs. what is unknown.** List them explicitly.
 
-> *Heuristic: If restating feels unnecessary, you're skipping it. Don't.*
+> _Heuristic: If restating feels unnecessary, you're skipping it. Don't._
 
 ---
 
@@ -48,13 +49,13 @@ Rushing to computation is the most common error. The paradigm below enforces a d
 
 Ask yourself:
 
-| Question | Why it matters |
-|---|---|
-| Is this algebraic, geometric, combinatorial, analytic...? | Determines which tools apply |
-| Is this asking for existence, uniqueness, or a value? | Shapes the strategy |
-| Is this continuous or discrete? | Governs which theorems and techniques are legal |
-| Does this have symmetry, periodicity, or special structure? | Often reveals the solution path |
-| Have I seen a structurally similar problem before? | Analogical reasoning is powerful |
+| Question                                                    | Why it matters                                  |
+| ----------------------------------------------------------- | ----------------------------------------------- |
+| Is this algebraic, geometric, combinatorial, analytic...?   | Determines which tools apply                    |
+| Is this asking for existence, uniqueness, or a value?       | Shapes the strategy                             |
+| Is this continuous or discrete?                             | Governs which theorems and techniques are legal |
+| Does this have symmetry, periodicity, or special structure? | Often reveals the solution path                 |
+| Have I seen a structurally similar problem before?          | Analogical reasoning is powerful                |
 
 Classification is not labeling for its own sake — it activates the right mental toolkit.
 
@@ -67,13 +68,14 @@ Classification is not labeling for its own sake — it activates the right menta
 This phase is skipped most often and costs the most.
 
 **Techniques:**
+
 - **Try small / simple cases.** What happens when n=1, n=2? What's the base case?
 - **Draw a picture.** Even for algebraic problems, a diagram often reveals structure. Geometry is the native language of the mind.
 - **Estimate or bound.** Can you say roughly how large the answer should be? Is it obviously greater than zero? Less than 1?
 - **Ask: what would make this easy?** If one variable were fixed, or one constraint removed, or the problem were 1D instead of 3D — what would happen?
 - **Check extreme cases.** What happens as a variable goes to 0, ∞, or some critical threshold?
 
-By the end of this phase, you should have a *guess* — even a vague one. This guess serves as a target and a sanity check.
+By the end of this phase, you should have a _guess_ — even a vague one. This guess serves as a target and a sanity check.
 
 ---
 
@@ -83,21 +85,21 @@ By the end of this phase, you should have a *guess* — even a vague one. This g
 
 Common strategies and when they apply:
 
-| Strategy | When to reach for it |
-|---|---|
-| **Direct computation** | The path is clear; just carry it out carefully |
-| **Reduction / substitution** | Transform the problem into a simpler or known one |
-| **Induction** | Problem involves natural numbers or recursive structure |
-| **Contradiction** | Easier to assume the opposite and derive impossibility |
-| **Contrapositive** | "If P then Q" becomes "If not Q then not P" |
-| **Construction** | Existence proof — build the object explicitly |
-| **Invariant / monovariant** | Track a quantity that never changes (or always changes monotonically) |
-| **Pigeonhole** | Counting objects into containers; one box must overflow |
-| **Symmetry / bijection** | Two sets are the same size if you can pair them perfectly |
-| **Generating functions** | Encode a sequence as a power series and use algebra |
-| **Dimensional analysis** | Check that units / degrees / types are consistent |
+| Strategy                     | When to reach for it                                                  |
+| ---------------------------- | --------------------------------------------------------------------- |
+| **Direct computation**       | The path is clear; just carry it out carefully                        |
+| **Reduction / substitution** | Transform the problem into a simpler or known one                     |
+| **Induction**                | Problem involves natural numbers or recursive structure               |
+| **Contradiction**            | Easier to assume the opposite and derive impossibility                |
+| **Contrapositive**           | "If P then Q" becomes "If not Q then not P"                           |
+| **Construction**             | Existence proof — build the object explicitly                         |
+| **Invariant / monovariant**  | Track a quantity that never changes (or always changes monotonically) |
+| **Pigeonhole**               | Counting objects into containers; one box must overflow               |
+| **Symmetry / bijection**     | Two sets are the same size if you can pair them perfectly             |
+| **Generating functions**     | Encode a sequence as a power series and use algebra                   |
+| **Dimensional analysis**     | Check that units / degrees / types are consistent                     |
 
-> *Rule: Name your strategy out loud before executing. If you can't name it, you haven't chosen one.*
+> _Rule: Name your strategy out loud before executing. If you can't name it, you haven't chosen one._
 
 ---
 
@@ -152,14 +154,14 @@ Ask:
 
 ## Common Failure Modes (and their fixes)
 
-| Failure | Symptom | Fix |
-|---|---|---|
-| **Premature computation** | You're three lines of algebra in and don't know why | Return to Phase 0. Restate the problem. |
-| **Strategy amnesia** | You're doing things but aren't sure what method you're using | Stop. Name the strategy. |
-| **Skipping verification** | You got an answer and moved on | Always substitute back. |
-| **Case blindness** | Your argument assumes x > 0 but doesn't address x ≤ 0 | Audit your assumptions. List every case. |
-| **Notation abuse** | Variables mean different things in different parts of the solution | Fix notation at the start; never reuse a symbol. |
-| **Anchoring on first approach** | You're committed to a method that isn't working | Return to Phase 3. There is always another strategy. |
+| Failure                         | Symptom                                                            | Fix                                                  |
+| ------------------------------- | ------------------------------------------------------------------ | ---------------------------------------------------- |
+| **Premature computation**       | You're three lines of algebra in and don't know why                | Return to Phase 0. Restate the problem.              |
+| **Strategy amnesia**            | You're doing things but aren't sure what method you're using       | Stop. Name the strategy.                             |
+| **Skipping verification**       | You got an answer and moved on                                     | Always substitute back.                              |
+| **Case blindness**              | Your argument assumes x > 0 but doesn't address x ≤ 0              | Audit your assumptions. List every case.             |
+| **Notation abuse**              | Variables mean different things in different parts of the solution | Fix notation at the start; never reuse a symbol.     |
+| **Anchoring on first approach** | You're committed to a method that isn't working                    | Return to Phase 3. There is always another strategy. |
 
 ---
 
@@ -181,4 +183,4 @@ Ask:
 
 When a user presents a math problem, walk through these phases explicitly — at least internally, and visibly when the problem is complex or the user seems stuck. Don't just produce an answer. Show the reasoning at each phase. If the user is learning, narrate the paradigm as you apply it. If they're advanced, you can compress phases but never skip verification.
 
-The goal is not speed. The goal is *understanding* — and then correctness.
+The goal is not speed. The goal is _understanding_ — and then correctness.

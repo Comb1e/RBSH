@@ -8,6 +8,10 @@ import { runGenerator } from "./generator.js";
 import { runEvaluator } from "./evaluator.js";
 import type { HandoffArtifact, LLMProvider } from "@/types//index.js";
 import { env } from "../config/env.js";
+import { readFilesFromRecord } from "@/utils/get_params.js";
+import { saveMarkdownCodeBlocksToFile } from "@/utils/output.js";
+
+const OUTPUT_PATH = "./output";
 
 // ---------------------------------------------------------------------------
 // Harness: Generator ↔ Evaluator loop
@@ -17,22 +21,26 @@ import { env } from "../config/env.js";
 
 async function generatorEvaluatorLoop(
   provider: LLMProvider,
-  artifact: HandoffArtifact
+  artifact: HandoffArtifact,
+  inputSchemas: string[]
 ): Promise<string> {
   let currentOutput = artifact.currentOutput;
+  let maxScore = 0;
 
   for (let iter = 1; iter <= env.AGENT_MAX_ITERATIONS; iter++) {
     artifact.iterationCount = iter;
     artifact.currentOutput = currentOutput;
 
     // --- Generate ---
-    const draft = await runGenerator(provider, artifact);
-    console.log(
-      `\nDraft output (${draft.length} chars):\n${draft.slice(0, 300)}…\n`
-    );
+    const draft = await runGenerator(provider, artifact, inputSchemas);
 
     // --- Evaluate ---
-    const evaluation = await runEvaluator(provider, artifact.task, draft);
+    const evaluation = await runEvaluator(
+      provider,
+      artifact.task,
+      draft,
+      inputSchemas
+    );
     console.log(
       `\nEvaluation  score=${evaluation.score}/10  passed=${evaluation.passed}`
     );
@@ -60,6 +68,15 @@ async function generatorEvaluatorLoop(
         `\n🔁 Score below threshold. Retrying (${iter}/${env.AGENT_MAX_ITERATIONS})…`
       );
     }
+    if (maxScore < evaluation.score) {
+      maxScore = evaluation.score;
+      artifact.preMaxOutput = "";
+    } else {
+      artifact.preMaxOutput =
+        artifact.preMaxOutput === ""
+          ? artifact.currentOutput
+          : artifact.preMaxOutput;
+    }
   }
 
   console.warn(
@@ -68,14 +85,18 @@ async function generatorEvaluatorLoop(
   return currentOutput;
 }
 
+const harnessTask = { prompts: "user_prompt.md" };
+
 export async function runHarness(
   provider: LLMProvider,
-  userTask: string
+  inputSchemas: string[]
 ): Promise<void> {
+  const userTaskArray = await readFilesFromRecord(harnessTask);
+  const userTask = userTaskArray.join("\n");
   console.log("═".repeat(60));
   console.log("RBSH");
   console.log("═".repeat(60));
-  console.log(`\nUser task: ${userTask}\n`);
+  console.log(`\nUser task:\n${userTask}`);
 
   // 1. Plan
   const steps = await runPlanner(provider, userTask);
@@ -86,23 +107,33 @@ export async function runHarness(
     completedSteps: [],
     remainingSteps: [...steps],
     currentOutput: "",
+    preMaxOutput: "",
     iterationCount: 0,
   };
 
   // 3. Execute each step through the generator ↔ evaluator loop
-  for (const step of steps) {
+  for (const step in steps) {
     console.log(`\n${"─".repeat(60)}`);
     console.log(`STEP: ${step}`);
     console.log("─".repeat(60));
 
     artifact.remainingSteps = artifact.remainingSteps.slice(1);
 
-    const result = await generatorEvaluatorLoop(provider, {
-      ...artifact,
-      task: step,
-    });
+    const result = await generatorEvaluatorLoop(
+      provider,
+      {
+        ...artifact,
+        task: step,
+      },
+      inputSchemas
+    );
 
     // Context reset: only the structured artifact crosses session boundaries
+    saveMarkdownCodeBlocksToFile(
+      result,
+      OUTPUT_PATH,
+      `${step.replace(/\s+/g, "_")}`
+    );
     artifact.completedSteps.push(step);
     artifact.currentOutput = result;
     artifact.iterationCount = 0;

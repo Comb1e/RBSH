@@ -52,3 +52,6 @@ Thumbs.db
 *.db
 *.sqlite3
 cache/
+output_schemas/
+input_raw/
+output/

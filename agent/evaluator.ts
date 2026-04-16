@@ -11,14 +11,15 @@ import { env } from "../config/env.js";
 export async function runEvaluator(
   provider: LLMProvider,
   task: string,
-  output: string
+  output: string,
+  inputSchemas: string[]
 ): Promise<EvaluationResult> {
   console.log("\n╔══════════════════════════════╗");
   console.log("║  EVALUATOR AGENT             ║");
   console.log("╚══════════════════════════════╝\n");
 
   // Evaluator needs no tools — pure LLM reasoning
-  const unifiedPrompt = getEvaluatorPrompt(task, output);
+  const unifiedPrompt = getEvaluatorPrompt(task, output, inputSchemas);
   const unifiedMessages = await provider.complete(unifiedPrompt);
   const raw = unifiedMessages.content;
 

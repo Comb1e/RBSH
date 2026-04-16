@@ -9,6 +9,7 @@ export interface HandoffArtifact {
   remainingSteps: string[];
   currentOutput: string;
   iterationCount: number;
+  preMaxOutput: string;
 }
 
 /** Evaluator verdict returned after each generator cycle. */
@@ -37,7 +38,7 @@ export interface UnifiedAgentOptions {
 }
 
 export interface LLMProvider {
-  complete(unifiedPrompt: UnifiedAgentPrompt): Promise<LLMCompletionResult>;
+  complete(unifiedPrompt: UnifiedAgentPrompt): Promise<LLMCompletionResult>; // Call LLM
 }
 
 export interface UnifiedAgentPrompt {
@@ -67,4 +68,10 @@ export interface UnifiedTool {
 export interface LLMCompletionResult {
   content: string;
   toolCalls?: UnifiedToolCall[];
+}
+
+export interface SkillMetadata {
+  name: string;
+  description: string;
+  func: string[];
 }

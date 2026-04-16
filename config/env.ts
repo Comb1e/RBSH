@@ -1,5 +1,7 @@
 import dotenv from "dotenv";
 import { z } from "zod";
+import path from "path";
+import { fileURLToPath } from "url";
 
 // 1. load .env file
 dotenv.config();
@@ -54,3 +56,7 @@ const envSchema = z
 // 3. Analyze and export (type safe+startup verification)
 export const env = envSchema.parse(process.env);
 export type EnvConfig = z.infer<typeof envSchema>;
+
+const __filename = fileURLToPath(import.meta.url);
+const __configdirname = path.dirname(__filename);
+export const __dirname = path.dirname(__configdirname);
