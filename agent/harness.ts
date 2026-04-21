@@ -6,10 +6,23 @@
 import { runPlanner } from "./planner.js";
 import { runGenerator } from "./generator.js";
 import { runEvaluator } from "./evaluator.js";
-import type { HandoffArtifact, LLMProvider } from "@/types//index.js";
+import { runSummarizer } from "./summarizer.js";
+import type {
+  HandoffArtifact,
+  LLMProvider,
+  ScoreExtractionResult,
+  CodeUnifiedInfo,
+} from "@/types//index.js";
+import type { CodeAnalysisResult } from "@/schemas/index.js";
 import { env } from "../config/env.js";
-import { readFilesFromRecord } from "@/utils/get_params.js";
-import { saveMarkdownCodeBlocksToFile } from "@/utils/output.js";
+import { readFilesFromRecord, extractOverallScore } from "@/utils/index.js";
+import {
+  saveMarkdownCodeBlocksToFile,
+  extractMarkdownCodeBlocks,
+  extractFileAndFolderFromText,
+} from "@/utils/output.js";
+import { CodeAnalysisSchema } from "@/schemas/code.js";
+import path from "path";
 
 const OUTPUT_PATH = "./output";
 
@@ -41,35 +54,30 @@ async function generatorEvaluatorLoop(
       draft,
       inputSchemas
     );
-    console.log(
-      `\nEvaluation  score=${evaluation.score}/10  passed=${evaluation.passed}`
-    );
-    console.log(`Critique: ${evaluation.critique}`);
 
-    if (evaluation.passed) {
-      console.log("\n✅ Output accepted by evaluator.");
+    const scoreResult: ScoreExtractionResult = extractOverallScore(evaluation);
+    console.log(scoreResult);
+    if (scoreResult.status === "Pass") {
+      console.log("\n[INFO] Output accepted by evaluator.");
       return draft;
     }
 
     // Feed the critique back into the next iteration via the artifact
     currentOutput = `
-  --- Previous attempt (score ${evaluation.score}/10) ---
+  --- Previous attempt (score ${scoreResult.score}) ---
   ${draft}
 
-  --- Evaluator critique ---
-  ${evaluation.critique}
-
-  --- Suggested revision ---
-  ${evaluation.suggestedRevision}
+  --- Evaluation ---
+  ${evaluation}
       `.trim();
 
     if (iter < env.AGENT_MAX_ITERATIONS) {
       console.log(
-        `\n🔁 Score below threshold. Retrying (${iter}/${env.AGENT_MAX_ITERATIONS})…`
+        `\n[WARN] Score below threshold. Retrying (${iter}/${env.AGENT_MAX_ITERATIONS})…`
       );
     }
-    if (maxScore < evaluation.score) {
-      maxScore = evaluation.score;
+    if (maxScore < scoreResult.score) {
+      maxScore = scoreResult.score;
       artifact.preMaxOutput = "";
     } else {
       artifact.preMaxOutput =
@@ -80,7 +88,7 @@ async function generatorEvaluatorLoop(
   }
 
   console.warn(
-    `\n⚠️  Max iterations (${env.AGENT_MAX_ITERATIONS}) reached. Returning best attempt.`
+    `\n[WARN]  Max iterations (${env.AGENT_MAX_ITERATIONS}) reached. Returning best attempt.`
   );
   return currentOutput;
 }
@@ -99,7 +107,7 @@ export async function runHarness(
   console.log(`\nUser task:\n${userTask}`);
 
   // 1. Plan
-  const steps = await runPlanner(provider, userTask);
+  const steps = await runPlanner(provider, userTask, inputSchemas);
 
   // 2. Build the initial handoff artifact
   const artifact: HandoffArtifact = {
@@ -107,12 +115,13 @@ export async function runHarness(
     completedSteps: [],
     remainingSteps: [...steps],
     currentOutput: "",
+    preCodeSummarize: [],
     preMaxOutput: "",
     iterationCount: 0,
   };
 
   // 3. Execute each step through the generator ↔ evaluator loop
-  for (const step in steps) {
+  for (const step of steps) {
     console.log(`\n${"─".repeat(60)}`);
     console.log(`STEP: ${step}`);
     console.log("─".repeat(60));
@@ -128,12 +137,32 @@ export async function runHarness(
       inputSchemas
     );
 
+    const extractedPath = extractFileAndFolderFromText(step);
+    console.log("extractedPath: ", extractedPath);
+    const fileName = extractedPath
+      ? extractedPath.file
+      : step.replace(/\s+/g, "_").toLowerCase();
+    console.log("fileName: ", fileName);
+    const outputPath = extractedPath
+      ? path.join(OUTPUT_PATH, extractedPath.folder)
+      : OUTPUT_PATH;
+    console.log("outputPath: ", outputPath);
+    const extractedCodeInfos: CodeUnifiedInfo[] =
+      await saveMarkdownCodeBlocksToFile(result, outputPath, fileName);
+
     // Context reset: only the structured artifact crosses session boundaries
-    saveMarkdownCodeBlocksToFile(
-      result,
-      OUTPUT_PATH,
-      `${step.replace(/\s+/g, "_")}`
-    );
+    for (const info of extractedCodeInfos) {
+      const codeSummarize = await runSummarizer(provider, info.code, info.path);
+      const cleaned = extractMarkdownCodeBlocks(codeSummarize);
+      console.log(cleaned);
+
+      for (const block of cleaned) {
+        const parsed: CodeAnalysisResult = CodeAnalysisSchema.parse(
+          JSON.parse(block.content)
+        );
+        artifact.preCodeSummarize.push(parsed);
+      }
+    }
     artifact.completedSteps.push(step);
     artifact.currentOutput = result;
     artifact.iterationCount = 0;

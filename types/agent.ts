@@ -1,3 +1,5 @@
+import { CodeAnalysisResult } from "@/schemas/index.js";
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -9,15 +11,13 @@ export interface HandoffArtifact {
   remainingSteps: string[];
   currentOutput: string;
   iterationCount: number;
+  preCodeSummarize: CodeAnalysisResult[];
   preMaxOutput: string;
 }
 
-/** Evaluator verdict returned after each generator cycle. */
-export interface EvaluationResult {
-  score: number; // 0-10
-  passed: boolean; // true when score >= PASSING_THRESHOLD
-  critique: string; // human-readable feedback
-  suggestedRevision: string;
+export interface ScoreExtractionResult {
+  score: number;
+  status: "Pass" | "Fail";
 }
 
 export interface UnifiedAgentOptions {

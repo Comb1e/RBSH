@@ -2,7 +2,7 @@ import { readFile } from "fs/promises";
 import fs from "fs/promises";
 import yaml from "js-yaml";
 import path from "path";
-import type { SkillMetadata } from "@/types/index.js";
+import type { SkillMetadata, ScoreExtractionResult } from "@/types/index.js";
 import { __dirname } from "@/config/env.js";
 import { parseExcelSchemaToFile } from "./read_excel.js";
 
@@ -117,7 +117,7 @@ export async function dataPreprocess(
   inputDir: string,
   outputDir: string
 ): Promise<string[]> {
-  console.log(`🚀 Starting preprocessing for directory: ${inputDir}`);
+  console.log(`[INFO] Starting preprocessing for directory: ${inputDir}`);
   let schemasPath: string[] = [];
 
   try {
@@ -134,11 +134,11 @@ export async function dataPreprocess(
     });
 
     if (excelFiles.length === 0) {
-      console.log("⚠️ No Excel files found in the input directory.");
+      console.log("[INFO] No Excel files found in the input directory.");
       return [];
     }
 
-    console.log(`📄 Found ${excelFiles.length} Excel files. Processing...`);
+    console.log(`[INFO] Found ${excelFiles.length} Excel files. Processing...`);
 
     // 4. Process each Excel file in parallel
     const processingPromises = excelFiles.map(async (filePath) => {
@@ -159,15 +159,15 @@ export async function dataPreprocess(
         await fs.mkdir(path.dirname(outputJsonPath), { recursive: true });
         */
 
-        console.log(`⏳ Processing: ${filePath}`);
+        console.log(`[INFO] Processing: ${filePath}`);
 
         // Call the existing schema parsing function
         await parseExcelSchemaToFile(filePath, outputJsonPath);
 
-        console.log(`✅ Success: ${outputJsonPath}`);
+        console.log(`[INFO] Success: ${outputJsonPath}`);
         return { file: filePath, status: "success" };
       } catch (error) {
-        console.error(`❌ Failed to process ${filePath}:`, error);
+        console.error(`[ERROR] Failed to process ${filePath}:`, error);
         return { file: filePath, status: "failed", error };
       }
     });
@@ -247,4 +247,60 @@ export async function loadSkillsMetadata(
   }
 
   return skills;
+}
+
+/**
+ * Extracts the overall score and pass/fail status from a text string.
+ *
+ * @param text - The input string containing score information.
+ * @returns An object with score and status, or null if not found.
+ */
+export function extractOverallScore(text: string): ScoreExtractionResult {
+  if (!text || typeof text !== "string") {
+    return {
+      score: 0,
+      status: "Fail",
+    };
+  }
+
+  // Strategy:
+  // 1. Look for the "## Overall Score" header.
+  // 2. Capture the number (integer or decimal) following it.
+  // 3. Capture the "Pass" or "Fail" keyword appearing after the score.
+
+  // Regex Explanation:
+  // ##\s*Overall\s+Score : Matches the header "## Overall Score" (flexible whitespace)
+  // \s*                  : Optional whitespace/newlines after header
+  // (\d+(?:\.\d+)?)      : Capture Group 1: The score (e.g., 4.0, 4, 92.5)
+  // .*?                  : Non-greedy match for any characters in between (e.g., "/ 4.0 —")
+  // (Pass|Fail)          : Capture Group 2: The status "Pass" or "Fail"
+  // i                    : Case-insensitive flag
+  const regex = /##\s*Overall\s+Score\s*(\d+(?:\.\d+)?).*?(Pass|Fail)/i;
+
+  const match = text.match(regex);
+
+  if (!match) {
+    return {
+      score: 0,
+      status: "Fail",
+    };
+  }
+
+  const scoreStr = match[1];
+  const statusStr = match[2].toLowerCase();
+
+  const score = parseFloat(scoreStr);
+
+  if (isNaN(score)) {
+    return {
+      score: 0,
+      status: "Fail",
+    };
+  }
+
+  return {
+    score: score,
+    // Normalize to capitalized 'Pass' or 'Fail'
+    status: statusStr === "pass" ? "Pass" : "Fail",
+  };
 }

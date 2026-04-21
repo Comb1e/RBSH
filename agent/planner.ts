@@ -6,17 +6,16 @@
 import type { LLMProvider } from "@/types/index.js";
 import { getPlannerPrompt } from "@/prompts/index.js";
 
-const plannerBase = ["planner.md"];
-
 export async function runPlanner(
   provider: LLMProvider,
-  task: string
+  task: string,
+  inputSchemas: string[]
 ): Promise<string[]> {
   console.log("\n╔══════════════════════════════╗");
   console.log("║  PLANNER AGENT               ║");
   console.log("╚══════════════════════════════╝\n");
 
-  const unifiedPrompt = await getPlannerPrompt(task);
+  const unifiedPrompt = await getPlannerPrompt(task, inputSchemas);
 
   // Planner needs no file-system tools — disable them all for minimum footprint
   const messages = await provider.complete(unifiedPrompt);
