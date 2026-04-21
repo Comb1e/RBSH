@@ -6,6 +6,8 @@ import {
   CodeUnifiedInfo,
 } from "@/types/index.js";
 
+const OUTPUT_PATH = "./output";
+
 /**
  * Maps language identifiers to file extensions.
  */
@@ -86,7 +88,8 @@ export async function saveMarkdownCodeBlocksToFile(
   outputDir: string,
   baseFileName: string = "code_block"
 ): Promise<CodeUnifiedInfo[]> {
-  await fs.mkdir(outputDir, { recursive: true });
+  const outputPath = path.join(OUTPUT_PATH, outputDir);
+  await fs.mkdir(outputPath, { recursive: true });
 
   const blocks = extractMarkdownCodeBlocks(markdownContent);
 
@@ -101,12 +104,12 @@ export async function saveMarkdownCodeBlocksToFile(
     }
 
     const fileName = `${baseFileName}`;
-    const filePath = path.join(outputDir, fileName);
+    const filePath = path.join(outputPath, fileName);
 
     try {
       await fs.writeFile(filePath, content);
       createdFiles.push({
-        path: filePath,
+        path: outputDir,
         code: content,
       });
       console.log(`[INFO] Saved: ${filePath}`);

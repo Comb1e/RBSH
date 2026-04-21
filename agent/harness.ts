@@ -22,9 +22,6 @@ import {
   extractFileAndFolderFromText,
 } from "@/utils/output.js";
 import { CodeAnalysisSchema } from "@/schemas/code.js";
-import path from "path";
-
-const OUTPUT_PATH = "./output";
 
 // ---------------------------------------------------------------------------
 // Harness: Generator ↔ Evaluator loop
@@ -56,6 +53,7 @@ async function generatorEvaluatorLoop(
     );
 
     const scoreResult: ScoreExtractionResult = extractOverallScore(evaluation);
+    console.log("\n");
     console.log(scoreResult);
     if (scoreResult.status === "Pass") {
       console.log("\n[INFO] Output accepted by evaluator.");
@@ -143,15 +141,16 @@ export async function runHarness(
       ? extractedPath.file
       : step.replace(/\s+/g, "_").toLowerCase();
     console.log("fileName: ", fileName);
-    const outputPath = extractedPath
-      ? path.join(OUTPUT_PATH, extractedPath.folder)
-      : OUTPUT_PATH;
+    const outputPath = extractedPath ? extractedPath.folder : "";
     console.log("outputPath: ", outputPath);
     const extractedCodeInfos: CodeUnifiedInfo[] =
       await saveMarkdownCodeBlocksToFile(result, outputPath, fileName);
 
     // Context reset: only the structured artifact crosses session boundaries
     for (const info of extractedCodeInfos) {
+      if (artifact.remainingSteps.length === 0) {
+        return;
+      }
       const codeSummarize = await runSummarizer(provider, info.code, info.path);
       const cleaned = extractMarkdownCodeBlocks(codeSummarize);
       console.log(cleaned);

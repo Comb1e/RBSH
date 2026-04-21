@@ -57,7 +57,7 @@ User task
   │        │ critique          ┌──────────┐│
   │        └───────────────────│ Evaluator││
   │                            └──────────┘│
-  │                  score ≥ 7 → accept    │
+  │                  score ≥ 2.5 → accept  │
   └────────────────────────────────────────┘
        │  final output
        ▼

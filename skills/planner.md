@@ -159,6 +159,33 @@ This is a hard filter, not a formatting requirement:
 - If the file does not exist yet, use the intended path: "Create
   #api/flags/handler.go# with the HTTP handler and route registration"
 
+**`#filename#` scope — generator-written files only:**
+`#filename#` must be used **exclusively** for files that the generator agent
+itself will create or modify. It must **not** be applied to:
+
+- Files that the written code produces at runtime (e.g., a CSV export, a log
+  file, a generated report)
+- Files that are merely mentioned, referenced, or described as outputs of the
+  program's behaviour
+
+The distinction is: _does the agent's code-writing action touch this file?_
+If yes → `#filename#`. If the file is produced later when the code runs →
+plain text, no markers.
+
+**Bad** (runtime output file incorrectly marked):
+
+```
+"Write result export logic in #economic_dispatch_solver.py# to output the
+optimal generation schedule to a CSV file #dispatch_result_hour12.csv#"
+```
+
+**Good** (only the source file the agent writes is marked):
+
+```
+"Write result export logic in #economic_dispatch_solver.py# to output the
+optimal generation schedule to a CSV file dispatch_result_hour12.csv"
+```
+
 **Implication for prerequisite understanding:** If implementing a file
 requires reading another file first (e.g., reading an interface before
 implementing it), that reading is not a separate step. The agent does it
@@ -176,24 +203,43 @@ autonomously before writing. Only the write step is planned.
 "Implement RedisBackedPipelineStore in #storage/redis_pipeline_store.go#"
 ```
 
-### First-generation rule
+### One file, one step (strict)
 
-When code for a file is being **generated for the first time**, the entire
-file is **one step**. Never split initial file generation across multiple
-steps. Example:
+**Each file may appear in at most one step of the initial plan.** Once a
+filename is used in a step, it must not appear in any other step — all logic
+for that file belongs inside the single step that owns it.
+
+This is an extension of the coarseness rule. A file is the atomic unit of
+work. If a task requires multiple things to happen inside one file (parsing,
+optimisation, output formatting, etc.), those things are **not** separate
+steps — they are all described within the single step for that file.
+
+**Bad** (same file split across four steps — not allowed):
 
 ```
-// CORRECT
-"Generate #pipeline/executor.go# with the Executor struct, Run method, and error-handling logic"
-
-// WRONG
-"Define the Executor struct in #executor.go#"
-"Implement Run() in #executor.go#"
-"Add error wrapping in #executor.go#"
+1. "Create #economic_dispatch_solver.py# to implement the solver that reads P6.xls and computes the optimal schedule for hour 12"
+2. "Implement Excel parsing logic in #economic_dispatch_solver.py# to load data from all sheets"
+3. "Add optimisation logic in #economic_dispatch_solver.py# using scipy.optimize.linprog"
+4. "Write result export logic in #economic_dispatch_solver.py# to save the schedule to dispatch_result_hour12.csv"
 ```
 
-Splitting is allowed in **later steps** once the file exists and the agent is
-making targeted adjustments based on observed output.
+**Good** (all logic for the file combined into one step):
+
+```
+1. "Create #economic_dispatch_solver.py# to read P6.xls, parse all required sheets, solve the economic dispatch for hour 12 using linear programming, and export the result to dispatch_result_hour12.csv"
+```
+
+**Alternative good** (if the work genuinely spans distinct files):
+
+```
+1. "Create #economic_dispatch_solver.py# with the optimisation core: load data from P6.xls, apply LP constraints, and return the schedule"
+2. "Create #dispatch_exporter.py# to format and save the solver output to dispatch_result_hour12.csv"
+```
+
+**One exception — adjustment steps:** after a file has been generated and
+the agent has observed a runtime error or test failure, a follow-up step may
+target the same file to fix the specific issue found. These reactive steps are
+not planned upfront; they are added dynamically based on observed output.
 
 ### Adjustment steps
 
@@ -205,16 +251,38 @@ After generation or execution, the agent may add follow-up steps such as:
 These are fine and expected. The initial plan should not pre-empt them by
 over-specifying; let the agent react to reality.
 
+### Summary step rule (required, always last)
+
+**Every plan must end with a summary step that writes #README.md#.** This
+step is mandatory and always the final element of the array — no exceptions.
+
+The summary step summarises what was done across all preceding steps: what
+files were created or modified, what the feature or fix achieves, and any
+important decisions made during execution. It must not be proposed before the
+other steps are complete.
+
+The step string must always be phrased as:
+
+```
+"Write a summary of all changes made in this task to #README.md#"
+```
+
+This step also satisfies the filename rule — #README.md# is the file it
+writes.
+
 ### Step count guidance
 
-| Task scope                                 | Typical step count |
-| ------------------------------------------ | ------------------ |
-| Single-concern, single-file                | 1–2                |
-| Feature touching 2–3 files                 | 2–4                |
-| End-to-end feature (API + service + tests) | 3–6                |
-| Large refactor or migration                | 4–8                |
+| Task scope                                 | Typical step count (excl. summary) |
+| ------------------------------------------ | ---------------------------------- |
+| Single-concern, single-file                | 1–2                                |
+| Feature touching 2–3 files                 | 2–4                                |
+| End-to-end feature (API + service + tests) | 3–6                                |
+| Large refactor or migration                | 4–8                                |
 
-If you're writing more than 8 steps, pause and ask: can some of these be
+The summary step is always appended after these, so the total array length is
+always N+1.
+
+If you're writing more than 8 non-summary steps, pause and ask: can some be
 merged into a coarser step?
 
 ---
@@ -225,21 +293,24 @@ Always return a `string[]`. Each element is a plain-language string.
 No sub-bullets. No markdown inside the strings. No numbering inside the
 strings (the caller renders order). **Every step must name a file it writes
 or modifies using the `#filename#` marker** (see Filename rule above).
-Steps that only read, explore, or understand are not allowed.
+Steps that only read, explore, or understand are not allowed. **The last
+element must always be the summary step targeting #README.md#.**
 
-**No plan needed** — single-element array with the raw task:
+**No plan needed** — single-element array with the raw task (no summary step):
 
 ```json
 ["Add a null-check for the config pointer in #config/loader.go#"]
 ```
 
-**Plan needed** — multi-element array of coarse steps, each with a #filename#:
+**Plan needed** — multi-element array of coarse steps, each with a #filename#,
+ending with the mandatory summary step:
 
 ```json
 [
   "Implement RedisBackedPipelineStore in #storage/redis_pipeline_store.go#",
   "Wire the new store into the DI container in #app/wire.go#",
-  "Add unit tests for RedisBackedPipelineStore in #storage/redis_pipeline_store_test.go#"
+  "Add unit tests for RedisBackedPipelineStore in #storage/redis_pipeline_store_test.go#",
+  "Write a summary of all changes made in this task to #README.md#"
 ]
 ```
 
@@ -260,7 +331,7 @@ Knowledge / identity question?
      ▼
 Self-contained & unambiguous?
      │
-    YES ──► return [rawTask] ──► execute directly
+    YES ──► return [rawTask] ──► execute directly (no summary step)
      │
     NO
      │
@@ -268,6 +339,8 @@ Self-contained & unambiguous?
 Draft coarse steps (1 step = 1 unit of work)
 Each step must write/modify a file → mark it #filename#
 First-gen file? ──► whole file = 1 step
+     │
+Append summary step → "Write a summary of all changes made in this task to #README.md#"
      │
 Return string[] of steps
 ```
