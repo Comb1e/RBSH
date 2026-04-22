@@ -35,8 +35,6 @@ export interface ColumnSchema {
   headerName: string;
   /** Data type inferred from sampled cell values */
   inferredType: InferredType;
-  /** Up to 5 representative non-empty values from the sampled rows */
-  sampleValues: unknown[];
   /** True when every sampled cell in this column is empty */
   isAlwaysEmpty: boolean;
 }

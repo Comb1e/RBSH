@@ -84,23 +84,6 @@ Fields to capture per variable:
 
 ---
 
-### 5. Dependencies
-
-- module
-- symbols
-- purpose
-
----
-
-### 6. Relationships (STRICTLY WITHIN FILE)
-
-- function_calls
-- variable_usage
-
-> **Note:** `variable_usage` should only reference global or class-member variables. Do NOT include local variables from function bodies.
-
----
-
 ## Output Format
 
 Return ONLY valid JSON. No explanation.
@@ -116,11 +99,6 @@ Return ONLY valid JSON. No explanation.
 "apis": [],
 "variables": [],
 "classes": [],
-"dependencies": [],
-"relationships": {
-"function_calls": [],
-"variable_usage": []
-}
 }
 ]
 }
@@ -138,14 +116,5 @@ Return ONLY valid JSON. No explanation.
 - Empty sections must be [].
 - Be concise but precise.
 - **NEVER include local variables (scope: "local") anywhere in the output — not in `variables`, not in `relationships.variable_usage`, not anywhere.**
-
----
-
-## Optional (Advanced Behavior)
-
-If imports reference another file in the input:
-
-- You may note the dependency in "dependencies"
-- BUT DO NOT merge or inline its APIs
 
 ---

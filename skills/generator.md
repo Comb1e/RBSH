@@ -117,6 +117,58 @@ explicitly, always honour it. Otherwise apply the table below.
 - Include inline comments where the format supports them and they aid understanding.
 - Follow the exact schema or example given in the prompt.
 
+### For README.md tasks
+
+When the task is to generate a `README.md` (or any project-level readme), use the `markdown` tag
+and follow the section order and standards below. Sections marked **required** must always appear.
+Sections marked *optional* are included when the prompt supplies enough information or explicitly
+requests them.
+
+**Required sections — always include, in this order:**
+
+1. **Title & Badges** (`# Project Name`)
+   - The `h1` must be the first line of the file.
+   - Follow with a one-line tagline in italic that summarises what the project does.
+   - Add shield.io badges (build status, license, version) when CI or package metadata is known;
+     omit badges entirely when no such information is provided rather than inserting placeholders.
+
+2. **Introduction** (`## Introduction`)
+   - 2–4 paragraphs. Answer: *What is this project? What problem does it solve? Who is it for?*
+   - State the primary language / technology stack in the first paragraph.
+   - Do not repeat the tagline verbatim; expand on it.
+   - End with a sentence on the project's current maturity (alpha, stable, production-ready, etc.)
+     if that information is available.
+
+3. **Quick Start** (`## Quick Start`)
+   - Goal: a reader with zero prior context should be able to run the project in under 5 minutes.
+   - Structure as numbered steps, not prose paragraphs.
+   - Every shell command must be in a fenced sub-block tagged `bash` (use indented fences since
+     the README itself is already inside a `markdown` block — indent 4 spaces or use `~~~bash`).
+   - Include: prerequisites check → install → minimal configuration → run / verify.
+   - End the section with the expected output or a success criterion so the reader knows it worked.
+
+**Optional sections — include when prompted or when information is clearly available:**
+
+4. **Features** (`## Features`) — bullet list of 4–8 capabilities; keep each to one line.
+5. **Installation** (`## Installation`) — full install options (pip, brew, docker, source) when
+   Quick Start covers only the simplest path.
+6. **Usage** (`## Usage`) — CLI flags, API examples, or code snippets beyond the minimal case.
+7. **Configuration** (`## Configuration`) — environment variables, config file schema, defaults.
+8. **Architecture / How It Works** (`## Architecture`) — diagram or prose for non-trivial systems.
+9. **Contributing** (`## Contributing`) — branch strategy, PR checklist, code style guide link.
+10. **License** (`## License`) — one line naming the license + link to `LICENSE` file.
+
+**README-specific formatting rules:**
+
+- Use `##` for top-level sections and `###` for subsections; never use `#` for anything except
+  the project title.
+- Every code snippet inside the README must have a language tag on its inner fence.
+- Keep line length ≤ 100 characters for readability in raw form.
+- Do not include a Table of Contents unless the README exceeds 600 words.
+- Avoid filler phrases ("This project is a great tool for…"). Every sentence must carry information.
+- Do not invent version numbers, URLs, or package names; use `<placeholder>` syntax when the
+  prompt does not supply them.
+
 ---
 
 ## 4. Reasoning Before Writing
@@ -273,6 +325,76 @@ jobs:
         run: pytest --tb=short -q
 ```
 
+```
+
+---
+
+### Example D — README.md
+
+Prompt: *"Write a README for a Python CLI tool called `tidycsv` that cleans messy CSV files."*
+
+```
+
+```markdown
+# tidycsv
+
+_A fast, opinionated CLI for cleaning and normalising messy CSV files._
+
+## Introduction
+
+**tidycsv** is a command-line tool written in Python that automates the most common CSV
+cleaning tasks: trimming whitespace, standardising date formats, deduplicating rows,
+and coercing column types. It is designed for data engineers and analysts who need
+reproducible, scriptable CSV preprocessing without dropping into a full pandas pipeline.
+
+The tool reads one or more CSV files, applies a configurable sequence of cleaning rules,
+and writes the result to stdout or a destination file. It integrates naturally with shell
+pipelines and CI data-validation workflows.
+
+tidycsv is production-stable and used in several internal data pipelines at the author's
+organisation.
+
+## Quick Start
+
+1. **Check prerequisites** — Python 3.11 or higher is required.
+
+   ```bash
+   python --version
+   ```
+
+2. **Install tidycsv** via pip.
+
+   ```bash
+   pip install tidycsv
+   ```
+
+3. **Run your first clean** — strip whitespace and remove duplicate rows from a file.
+
+   ```bash
+   tidycsv clean --dedup --strip-whitespace input.csv -o output.csv
+   ```
+
+4. **Verify** — the command prints a summary on success.
+
+   ```
+   ✔ Processed 1 file | 4 382 rows in → 4 201 rows out (181 duplicates removed)
+   ```
+
+## Features
+
+- Trim leading/trailing whitespace from all string cells
+- Deduplicate rows (exact match or fuzzy key match)
+- Standardise date columns to ISO 8601 (`YYYY-MM-DD`)
+- Coerce numeric columns and report non-coercible values
+- Drop or flag rows with missing required fields
+- Chain multiple cleaning rules in a single pass
+- Stream large files without loading them fully into memory
+
+## License
+
+Released under the [MIT License](LICENSE).
+```
+
 ````
 
 ---
@@ -302,4 +424,5 @@ Before finalising your response, verify:
 - [ ] Nothing appears after the closing fence
 - [ ] Content fully answers the prompt
 - [ ] Code is runnable / prose is complete and coherent
+- [ ] If README: Introduction and Quick Start sections are both present and complete
 ````

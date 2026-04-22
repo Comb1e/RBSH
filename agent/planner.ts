@@ -8,14 +8,17 @@ import { getPlannerPrompt } from "@/prompts/index.js";
 
 export async function runPlanner(
   provider: LLMProvider,
-  task: string,
-  inputSchemas: string[]
+  background: string,
+  inputSchemaDescription: string
 ): Promise<string[]> {
   console.log("\n╔══════════════════════════════╗");
   console.log("║  PLANNER AGENT               ║");
   console.log("╚══════════════════════════════╝\n");
 
-  const unifiedPrompt = await getPlannerPrompt(task, inputSchemas);
+  const unifiedPrompt = await getPlannerPrompt(
+    background,
+    inputSchemaDescription
+  );
 
   // Planner needs no file-system tools — disable them all for minimum footprint
   const messages = await provider.complete(unifiedPrompt);
@@ -29,6 +32,6 @@ export async function runPlanner(
     console.warn(
       "Planner returned non-JSON; falling back to single-step plan."
     );
-    return [task];
+    return [background];
   }
 }

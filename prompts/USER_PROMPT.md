@@ -1,5 +1,15 @@
 # Main Problem
 
-使用英文完成以下任务,需要有能读取 input schema 中 excel 并进行规划的 python 代码：
+Using the network parameters, system demands, unit commitment statuses, and other data provided in the attached file P6.xls, determine the economic dispatch schedule for 12:00 PM. The objective is to minimize the total operating cost while satisfying all system physical constraints and individual unit operational constraints.
 
-电力系统经济调度的主要目标为在满足系统物理约束与各机组运行约束的前提下，使总的运行成本最低。经济调度中要考虑的约束主要有两类，一类为系统约束，如系统负荷需求、备用需求、传输线容量等，另一类为单机组的物理约束，如机组的最小开关机时间、爬坡速率、水电机组的水电转换关系等。一般的经济调度过程为：对未来一天或一周内系统的负载需求预测，把其作为调度的负载需求，综合考虑各项约束，利用机组组合(Unit Commitment)方法确定机组的启停方案，同时利用经济分配（Economic Dispatch）方法得到各机组的发电功率。请利用附件 P6.xls 中的网络参数、系统需求、启停状态等数据，确定中午 12 点的经济分配方案。
+Workflow:
+
+1. Forecast the system load demand for the next day or week and use it as the scheduling load requirement.
+2. Determine the unit commitment (start-up and shut-down) schedule using the Unit Commitment method.
+3. Calculate the power output of each unit using the Economic Dispatch method.
+
+Requirements:
+
+1. Use linear programming or integer programming methods.
+2. Implement the solution in Python 3.13 with a modular structure, orchestrated by a main.py entry point.
+3. The steps must detail how to utilize the information from the input schema. Among input schema, 机组初始发电量 = 0 represents that the generator is not turned on

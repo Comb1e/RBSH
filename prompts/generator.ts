@@ -7,7 +7,8 @@ const generatorBase = {
 
 export async function getGeneratorPrompt(
   artifact: HandoffArtifact,
-  inputSchemas: string[]
+  background: string,
+  inputSchemaDescription: string
 ): Promise<UnifiedAgentPrompt> {
   const basicSkills = await readFilesFromRecord(generatorBase);
   const systemPrompt = `
@@ -17,9 +18,12 @@ export async function getGeneratorPrompt(
   === INSTRUCTIONS ===
   You will get scores for your task from 0-4, 4 is perfect.
 
+  === BACKGROUND ===
+  ${background}
+
   === Input Schemas ===
   There are excel sheets with the following columns:
-  ${inputSchemas.join("\n\n")}
+  ${inputSchemaDescription}
     `.trim();
 
   const userPrompt = `
@@ -32,8 +36,8 @@ export async function getGeneratorPrompt(
       .join("\n") || "  (none yet)"
   }
 
-  Next step to execute:
-    ${artifact.remainingSteps[0] ?? "(all steps complete)"}
+  Code summarization for completed steps, you can directly use this to avoid writing code that has already been written:
+  ${artifact.preCodeSummarize}
 
   Previous output to build on:
   ${artifact.currentOutput || "(no prior output)"}

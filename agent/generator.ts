@@ -11,7 +11,8 @@ import { getGeneratorPrompt } from "../prompts/generator.js";
 export async function runGenerator(
   provider: LLMProvider,
   artifact: HandoffArtifact,
-  inputSchemas: string[]
+  background: string,
+  inputSchemaDescription: string
 ): Promise<string> {
   console.log("\n╔══════════════════════════════╗");
   console.log(
@@ -21,7 +22,11 @@ export async function runGenerator(
   );
   console.log("╚══════════════════════════════╝\n");
 
-  const unifiedPrompt = await getGeneratorPrompt(artifact, inputSchemas);
+  const unifiedPrompt = await getGeneratorPrompt(
+    artifact,
+    background,
+    inputSchemaDescription
+  );
 
   const messages = await provider.complete(unifiedPrompt);
   return messages.content;

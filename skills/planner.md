@@ -135,7 +135,52 @@ Bad step granularity (too fine):
 The bad examples above are all part of _one_ coarse step: writing the
 evaluator file. Don't split them.
 
-### Filename rule (strict)
+### Step ordering rule
+
+**Steps must be ordered by dependency: foundational files first, entry-point
+and orchestration files last.** The sequence should reflect the natural
+build-up of the system — each file can rely on the files defined in earlier
+steps, so the generator agent never references something it hasn't written yet.
+
+Follow this general ordering within a plan:
+
+1. **Data layer** — files that load, parse, or fetch raw input (e.g.,
+   data loaders, file readers, API clients, database connectors).
+   These have no dependencies on other project files and go first.
+2. **Domain / core logic** — files that implement the business rules,
+   algorithms, or processing (e.g., solvers, calculators, transformers).
+   These depend on the data layer.
+3. **Infrastructure / support** — utilities, helpers, config, shared types,
+   and interfaces that are used across layers.
+4. **Output / integration layer** — files that format results, write exports,
+   call external services, or connect components (e.g., exporters, adapters,
+   reporters).
+5. **Tests** — unit and integration test files, ordered to match the files
+   they cover.
+6. **Entry point / orchestration** — the main runner, CLI entrypoint, or
+   top-level orchestrator that wires everything together and executes the
+   full flow. This is always near the end, just before the summary step.
+7. **Summary** — #README.md# is always last (see Summary step rule).
+
+**Bad** (entry point created before the logic it depends on):
+
+```
+1. "Create #main.py# to run the full pipeline"
+2. "Create #data_loader.py# to parse input files"
+3. "Create #solver.py# to compute the result"
+```
+
+**Good** (dependencies created before their consumers):
+
+```
+1. "Create #data_loader.py# to parse input files"
+2. "Create #solver.py# to compute the result using data from data_loader"
+3. "Create #main.py# to orchestrate data loading, solving, and output"
+4. "Write a summary of all changes made in this task to #README.md#"
+```
+
+If two files have no dependency relationship, use domain proximity to decide
+their order (e.g., group related modules together).
 
 **A step only exists if it writes or modifies a file.** If a step does not
 produce a file change, it must not appear in the plan — not even as a

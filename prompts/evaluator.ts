@@ -1,23 +1,29 @@
 import type { UnifiedAgentPrompt } from "@/types/index.js";
+import type { CodeAnalysisResult } from "@/schemas/index.js";
 import { readFilesFromRecord } from "@/utils/get_params.js";
 
-const evaluatorrBase = {
+const evaluatorBase = {
   skills: "evaluator.md",
 };
 
 export async function getEvaluatorPrompt(
   task: string,
+  background: string,
   output: string,
-  inputSchemas: string[]
+  inputSchemaDescription: string,
+  preCodeSummarize: CodeAnalysisResult[]
 ): Promise<UnifiedAgentPrompt> {
-  const basicSkills = await readFilesFromRecord(evaluatorrBase);
+  const basicSkills = await readFilesFromRecord(evaluatorBase);
   const systemPrompt = `
   === BASIC SKILLS ===
   ${basicSkills.join("\n\n")}
 
+  === Background ===
+  ${background}
+
   === Input Schemas ===
   There are excel sheets with the following columns:
-  ${inputSchemas.join("\n\n")}
+  ${inputSchemaDescription}
   `.trim();
 
   const userPrompt = `
@@ -27,6 +33,9 @@ export async function getEvaluatorPrompt(
     \`\`\`
     ${output}
     \`\`\`
+
+    Code summarization for completed steps:
+    ${preCodeSummarize}
     `.trim();
 
   return {

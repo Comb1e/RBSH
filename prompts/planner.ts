@@ -6,8 +6,8 @@ const plannerBase = {
 };
 
 export async function getPlannerPrompt(
-  task: string,
-  inputSchemas: string[]
+  background: string,
+  inputSchemaDescription: string
 ): Promise<UnifiedAgentPrompt> {
   const basicSkills = await readFilesFromRecord(plannerBase);
 
@@ -18,14 +18,13 @@ export async function getPlannerPrompt(
 
     === BASIC SKILLS ===
     ${basicSkills.join("\n\n")}
-
-    === Input Schemas ===
-    There are excel sheets with the following columns:
-    ${inputSchemas.join("\n\n")}
   `.trim();
   const userPrompt = `
-    Task: ${task}
+    Task: ${background}
+
+    Input Schema: ${inputSchemaDescription}
     `.trim();
+  console.log(userPrompt);
   return {
     system: systemPrompt,
     user: userPrompt,

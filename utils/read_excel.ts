@@ -137,9 +137,6 @@ function buildSheetSchema(
       columnLetter: columnIndexToLetter(c),
       headerName,
       inferredType: mergeTypes(types),
-      sampleValues: cellValues
-        .slice(0, 5)
-        .map((v) => truncateValue(v, maxValueLength)),
       isAlwaysEmpty: cellValues.length === 0,
     });
   }

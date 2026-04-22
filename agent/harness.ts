@@ -7,13 +7,13 @@ import { runPlanner } from "./planner.js";
 import { runGenerator } from "./generator.js";
 import { runEvaluator } from "./evaluator.js";
 import { runSummarizer } from "./summarizer.js";
+import { runComprehension } from "./comprehension.js";
 import type {
   HandoffArtifact,
   LLMProvider,
   ScoreExtractionResult,
   CodeUnifiedInfo,
 } from "@/types//index.js";
-import type { CodeAnalysisResult } from "@/schemas/index.js";
 import { env } from "../config/env.js";
 import { readFilesFromRecord, extractOverallScore } from "@/utils/index.js";
 import {
@@ -21,7 +21,11 @@ import {
   extractMarkdownCodeBlocks,
   extractFileAndFolderFromText,
 } from "@/utils/output.js";
-import { CodeAnalysisSchema } from "@/schemas/code.js";
+import type { CodeAnalysisResult } from "@/schemas/index.js";
+import {
+  CodeAnalysisSchema,
+  extractSpreadsheetAnalysis,
+} from "@/schemas/index.js";
 
 // ---------------------------------------------------------------------------
 // Harness: Generator ↔ Evaluator loop
@@ -31,8 +35,9 @@ import { CodeAnalysisSchema } from "@/schemas/code.js";
 
 async function generatorEvaluatorLoop(
   provider: LLMProvider,
+  background: string,
   artifact: HandoffArtifact,
-  inputSchemas: string[]
+  inputSchemaDescription: string
 ): Promise<string> {
   let currentOutput = artifact.currentOutput;
   let maxScore = 0;
@@ -42,14 +47,21 @@ async function generatorEvaluatorLoop(
     artifact.currentOutput = currentOutput;
 
     // --- Generate ---
-    const draft = await runGenerator(provider, artifact, inputSchemas);
+    const draft = await runGenerator(
+      provider,
+      artifact,
+      background,
+      inputSchemaDescription
+    );
 
     // --- Evaluate ---
     const evaluation = await runEvaluator(
       provider,
+      background,
       artifact.task,
       draft,
-      inputSchemas
+      inputSchemaDescription,
+      artifact.preCodeSummarize
     );
 
     const scoreResult: ScoreExtractionResult = extractOverallScore(evaluation);
@@ -104,12 +116,31 @@ export async function runHarness(
   console.log("═".repeat(60));
   console.log(`\nUser task:\n${userTask}`);
 
-  // 1. Plan
-  const steps = await runPlanner(provider, userTask, inputSchemas);
+  // 1. Comprehension
+  const comprehensionArtifactRaw = await runComprehension(
+    provider,
+    userTask,
+    inputSchemas
+  );
+  const comprehensionArtifact = extractSpreadsheetAnalysis(
+    comprehensionArtifactRaw
+  );
+  const comprehensionTask = JSON.stringify(comprehensionArtifact.coreProblem);
+  const inputSchemaDescription =
+    JSON.stringify(comprehensionArtifact.columns) +
+    JSON.stringify(comprehensionArtifact.crossSheetRelationships) +
+    JSON.stringify(comprehensionArtifact.meta);
 
-  // 2. Build the initial handoff artifact
+  // 2. Plan
+  const steps = await runPlanner(
+    provider,
+    comprehensionTask,
+    inputSchemaDescription
+  );
+
+  // 3. Build the initial handoff artifact
   const artifact: HandoffArtifact = {
-    task: userTask,
+    task: comprehensionTask,
     completedSteps: [],
     remainingSteps: [...steps],
     currentOutput: "",
@@ -128,11 +159,12 @@ export async function runHarness(
 
     const result = await generatorEvaluatorLoop(
       provider,
+      artifact.task,
       {
         ...artifact,
         task: step,
       },
-      inputSchemas
+      inputSchemaDescription
     );
 
     const extractedPath = extractFileAndFolderFromText(step);

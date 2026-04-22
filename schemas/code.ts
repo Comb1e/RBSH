@@ -33,27 +33,6 @@ const ClassSchema = z.object({
   methods: z.array(z.string()),
 });
 
-const DependencySchema = z.object({
-  module: z.string(),
-  symbols: z.array(z.string()),
-  purpose: z.string(),
-});
-
-const RelationshipsSchema = z.object({
-  function_calls: z.array(
-    z.object({
-      caller: z.string(),
-      callee: z.string(),
-    })
-  ),
-  variable_usage: z.array(
-    z.object({
-      variable: z.string(),
-      used_by: z.string(),
-    })
-  ),
-});
-
 const FileSchema = z.object({
   file: z.object({
     file_name: z.string(),
@@ -63,8 +42,6 @@ const FileSchema = z.object({
   apis: z.array(ApiSchema),
   variables: z.array(VariableSchema),
   classes: z.array(ClassSchema),
-  dependencies: z.array(DependencySchema),
-  relationships: RelationshipsSchema,
 });
 
 export const CodeAnalysisSchema = z.object({

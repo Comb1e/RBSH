@@ -90,7 +90,7 @@ say so explicitly — do not guess or skip silently.
 After all dimensions:
 
 - **Overall Score**: Weighted average across dimensions (weights vary by task type — see rubrics.md)
-- **Pass / Fail** (if the harness requires binary): Pass = overall ≥ 2.5 unless any critical failure exists
+- **Pass / Fail** (if the harness requires binary): Pass = overall ≥ 3.2 unless any critical failure exists
 - **Key Strengths**: Up to 3 bullet points
 - **Key Weaknesses**: Up to 3 bullet points
 - **Evaluator Notes**: Any caveats, edge cases, or flags for the pipeline (e.g., "could not verify output against ground truth", "refusal may be overcautious")
@@ -407,7 +407,7 @@ Reasoning / Analysis
 None
 
 ## Overall Score
-2.3 / 4.0 — Pass (marginal)
+2.3 / 4.0 — Fail
 
 ## Strengths
 - Correctly identifies both paradigms
@@ -552,7 +552,7 @@ Planning / Design
 None
 
 ## Overall Score
-2.2 / 4.0 — Pass (marginal)
+2.2 / 4.0 — Fail
 
 ## Strengths
 - High-level steps are correct
