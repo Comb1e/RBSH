@@ -134,14 +134,22 @@ Always produce evaluation output in this structure:
 [One or more task types identified]
 
 ## Dimensions Evaluated
-[Table or list of dimension → score → brief reasoning]
+[Table or list of dimension -> score -> brief reasoning]
 
 ## Critical Failures
 [List or "None"]
 
 ## Overall Score
-[X.X / 4.0] — [Pass / Fail]
+[X.X / 4.0] -- [Pass / Fail]
+```
 
+**If the result is Pass**, stop here. Do not output ## Strengths, ## Weaknesses,
+
+## Evaluator Notes, or any other section. The overall score is sufficient signal for a passing output.
+
+**If the result is Fail**, continue with:
+
+```
 ## Strengths
 - ...
 - ...
@@ -407,7 +415,7 @@ Reasoning / Analysis
 None
 
 ## Overall Score
-2.3 / 4.0 — Fail
+2.3 / 4.0 — Fail (below 3.2 threshold)
 
 ## Strengths
 - Correctly identifies both paradigms
@@ -462,19 +470,10 @@ Code / Implementation
 None
 
 ## Overall Score
-4.0 / 4.0 — Pass
-
-## Strengths
-- Uses stdlib idiom rather than reinventing memoization
-- Handles negative input guard
-- Concise and clear
-
-## Weaknesses
-- No docstring (minor)
-
-## Evaluator Notes
-Excellent output. The absence of a docstring is a minor style point, not a functional gap.
+4.0 / 4.0 -- Pass
 ```
+
+_(Output stops here — no Strengths, Weaknesses, or Evaluator Notes on a passing result.)_
 
 ---
 
@@ -552,7 +551,7 @@ Planning / Design
 None
 
 ## Overall Score
-2.2 / 4.0 — Fail
+2.2 / 4.0 — Fail (below 3.2 threshold)
 
 ## Strengths
 - High-level steps are correct
@@ -598,19 +597,10 @@ Factual / Knowledge
 None
 
 ## Overall Score
-4.0 / 4.0 — Pass
-
-## Strengths
-- Precise answer with correct context (model name, year)
-- Appropriate confidence level
-- Cites source type without fabricating
-
-## Weaknesses
-None
-
-## Evaluator Notes
-Solid factual response. No issues.
+4.0 / 4.0 -- Pass
 ```
+
+_(Output stops here — no Strengths, Weaknesses, or Evaluator Notes on a passing result.)_
 
 ---
 

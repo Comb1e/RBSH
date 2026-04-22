@@ -12,4 +12,3 @@ Requirements:
 
 1. Use linear programming or integer programming methods.
 2. Implement the solution in Python 3.13 with a modular structure, orchestrated by a main.py entry point.
-3. The steps must detail how to utilize the information from the input schema. Among input schema, 机组初始发电量 = 0 represents that the generator is not turned on

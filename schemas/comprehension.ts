@@ -5,21 +5,16 @@ const CoreProblemSchema = z.object({
   goal: z
     .string()
     .describe("verb phrase: what transformation/output is requested"),
-  targetSheets: z.array(z.string()),
-  targetColumns: z.array(
-    z
-      .string()
-      .regex(/^[^.]+\.[A-Z]+$/i, "Must be in format 'SheetName.ColumnLetter'")
-  ),
-  outputLocation: z.enum([
-    "new_column",
-    "new_sheet",
-    "existing_cell",
-    "formula",
-    "ambiguous",
-  ]),
   outputDetail: z.string(),
   constraints: z.array(z.string()),
+  userRequirements: z
+    .array(
+      z.object({
+        key: z.string().describe("requirement name"),
+        value: z.string().describe("requirement value"),
+      })
+    )
+    .default([]),
   assumptions: z.array(
     z.object({
       topic: z.string(),
@@ -29,11 +24,10 @@ const CoreProblemSchema = z.object({
 });
 
 const ColumnSchema = z.object({
-  sheet: z.string(),
   columnLetter: z
     .string()
-    .regex(/^[A-Z]+$/i, "Must be a valid column letter(s)"),
-  headerName: z.string(),
+    .regex(/^[A-Z]+$/i, "Must be valid Excel column letters (e.g., A, AA)"),
+  headerName: z.string().describe("as extracted from the header row"),
   inferredType: z.enum([
     "string",
     "number",
@@ -42,8 +36,9 @@ const ColumnSchema = z.object({
     "empty",
     "mixed",
   ]),
-  alwaysEmpty: z.boolean(),
-  meaning: z.string(),
+  meaning: z
+    .string()
+    .describe("one sentence: what real-world value this field stores"),
   taskRole: z.enum([
     "INPUT",
     "OUTPUT",
@@ -53,29 +48,72 @@ const ColumnSchema = z.object({
     "IRRELEVANT",
     "UNKNOWN",
   ]),
-  taskRoleReason: z.string(),
-  caveats: z.array(z.string()),
+  taskRoleReason: z
+    .string()
+    .describe("one sentence: why this role was assigned"),
+  caveats: z.array(z.string()).describe("warning if any — empty array if none"),
+});
+
+const ColumnGroupSchema = z.object({
+  pattern: z
+    .string()
+    .describe(
+      "header pattern with {i} as placeholder, e.g. 'Bus{i}', 'Week_{i}'"
+    ),
+  columnRange: z
+    .string()
+    .describe("first column letter:last column letter, e.g. 'C:E'"),
+  count: z
+    .number()
+    .int()
+    .positive()
+    .describe("number of columns in this group"),
+  inferredType: z
+    .enum(["string", "number", "boolean", "date", "empty", "mixed"])
+    .describe("shared inferredType"),
+  meaning: z
+    .string()
+    .describe(
+      "one sentence describing what all columns in the group represent, using {i} as placeholder for the index"
+    ),
+  taskRole: z
+    .enum([
+      "INPUT",
+      "OUTPUT",
+      "KEY",
+      "FILTER",
+      "LABEL",
+      "IRRELEVANT",
+      "UNKNOWN",
+    ])
+    .describe("shared taskRole"),
+  taskRoleReason: z
+    .string()
+    .describe("one sentence: why this role applies to the whole group"),
+  caveats: z
+    .array(z.string())
+    .describe("shared warning if any — empty array if none"),
+});
+
+const SheetSchema = z.object({
+  sheetName: z.string(),
+  columns: z.array(ColumnSchema),
+  columnGroups: z.array(ColumnGroupSchema).optional().default([]),
 });
 
 const CrossSheetRelationshipSchema = z.object({
   fromSheet: z.string(),
-  fromColumn: z.string().regex(/^[A-Z]+$/i),
+  fromColumn: z.string(),
   toSheet: z.string(),
-  toColumn: z.string().regex(/^[A-Z]+$/i),
+  toColumn: z.string(),
   relationshipType: z.enum(["join", "lookup", "reference"]),
   note: z.string(),
 });
 
-const MetaSchema = z.object({
-  lowConfidenceTypes: z.boolean(),
-  lowConfidenceReason: z.string(),
-});
-
 const ExtractionResultSchema = z.object({
   coreProblem: CoreProblemSchema,
-  columns: z.array(ColumnSchema),
+  sheets: z.array(SheetSchema),
   crossSheetRelationships: z.array(CrossSheetRelationshipSchema),
-  meta: MetaSchema,
 });
 
 // Infer the TypeScript type from the schema

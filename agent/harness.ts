@@ -127,9 +127,8 @@ export async function runHarness(
   );
   const comprehensionTask = JSON.stringify(comprehensionArtifact.coreProblem);
   const inputSchemaDescription =
-    JSON.stringify(comprehensionArtifact.columns) +
-    JSON.stringify(comprehensionArtifact.crossSheetRelationships) +
-    JSON.stringify(comprehensionArtifact.meta);
+    JSON.stringify(comprehensionArtifact.sheets) +
+    JSON.stringify(comprehensionArtifact.crossSheetRelationships);
 
   // 2. Plan
   const steps = await runPlanner(
