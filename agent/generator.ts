@@ -7,6 +7,7 @@
 
 import type { HandoffArtifact, LLMProvider } from "@/types/index.js";
 import { getGeneratorPrompt } from "../prompts/generator.js";
+import { env } from "../config/env.js";
 
 export async function runGenerator(
   provider: LLMProvider,
@@ -28,6 +29,12 @@ export async function runGenerator(
     inputSchemaDescription
   );
 
-  const messages = await provider.complete(unifiedPrompt);
-  return messages.content;
+  for (let iter = 1; iter <= env.AGENT_MAX_ITERATIONS; iter++) {
+    const messages = await provider.complete(unifiedPrompt);
+    if (messages.content != "") {
+      return messages.content;
+    }
+    console.log("[WARN] Generator returned empty content; retrying...");
+  }
+  return "ERROR";
 }

@@ -5,6 +5,7 @@
 
 import type { LLMProvider } from "@/types/index.js";
 import { getComprehensionPrompt } from "../prompts/comprehension.js";
+import { env } from "../config/env.js";
 
 export async function runComprehension(
   provider: LLMProvider,
@@ -12,11 +13,17 @@ export async function runComprehension(
   inputSchemas: string[]
 ): Promise<string> {
   console.log("\n╔══════════════════════════════╗");
-  console.log("║  COMPREHENSION AGENT           ║");
+  console.log("║  COMPREHENSION AGENT         ║");
   console.log("╚══════════════════════════════╝\n");
 
   const unifiedPrompt = await getComprehensionPrompt(user_prompt, inputSchemas);
 
-  const messages = await provider.complete(unifiedPrompt);
-  return messages.content;
+  for (let iter = 1; iter <= env.AGENT_MAX_ITERATIONS; iter++) {
+    const messages = await provider.complete(unifiedPrompt);
+    if (messages.content != "") {
+      return messages.content;
+    }
+    console.log("[WARN] Evaluator returned empty content; retrying...");
+  }
+  return "ERROR";
 }

@@ -15,7 +15,7 @@ const ApiSchema = z.object({
     description: z.string(),
   }),
   visibility: z.string(),
-  class: z.string().nullable(),
+  class: z.string().nullable().optional(),
 });
 
 const VariableSchema = z.object({

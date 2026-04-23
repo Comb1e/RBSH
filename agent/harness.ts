@@ -19,7 +19,7 @@ import { readFilesFromRecord, extractOverallScore } from "@/utils/index.js";
 import {
   saveMarkdownCodeBlocksToFile,
   extractMarkdownCodeBlocks,
-  extractFileAndFolderFromText,
+  extractMarkdownAndSave,
 } from "@/utils/output.js";
 import type { CodeAnalysisResult } from "@/schemas/index.js";
 import {
@@ -40,7 +40,6 @@ async function generatorEvaluatorLoop(
   inputSchemaDescription: string
 ): Promise<string> {
   let currentOutput = artifact.currentOutput;
-  let maxScore = 0;
 
   for (let iter = 1; iter <= env.AGENT_MAX_ITERATIONS; iter++) {
     artifact.iterationCount = iter;
@@ -85,15 +84,6 @@ async function generatorEvaluatorLoop(
       console.log(
         `\n[WARN] Score below threshold. Retrying (${iter}/${env.AGENT_MAX_ITERATIONS})…`
       );
-    }
-    if (maxScore < scoreResult.score) {
-      maxScore = scoreResult.score;
-      artifact.preMaxOutput = "";
-    } else {
-      artifact.preMaxOutput =
-        artifact.preMaxOutput === ""
-          ? artifact.currentOutput
-          : artifact.preMaxOutput;
     }
   }
 
@@ -144,7 +134,6 @@ export async function runHarness(
     remainingSteps: [...steps],
     currentOutput: "",
     preCodeSummarize: [],
-    preMaxOutput: "",
     iterationCount: 0,
   };
 
@@ -166,36 +155,36 @@ export async function runHarness(
       inputSchemaDescription
     );
 
-    const extractedPath = extractFileAndFolderFromText(step);
-    console.log("extractedPath: ", extractedPath);
-    const fileName = extractedPath
-      ? extractedPath.file
-      : step.replace(/\s+/g, "_").toLowerCase();
-    console.log("fileName: ", fileName);
-    const outputPath = extractedPath ? extractedPath.folder : "";
-    console.log("outputPath: ", outputPath);
-    const extractedCodeInfos: CodeUnifiedInfo[] =
-      await saveMarkdownCodeBlocksToFile(result, outputPath, fileName);
-
-    // Context reset: only the structured artifact crosses session boundaries
-    for (const info of extractedCodeInfos) {
-      if (artifact.remainingSteps.length === 0) {
-        return;
-      }
-      const codeSummarize = await runSummarizer(provider, info.code, info.path);
-      const cleaned = extractMarkdownCodeBlocks(codeSummarize);
-      console.log(cleaned);
-
-      for (const block of cleaned) {
-        const parsed: CodeAnalysisResult = CodeAnalysisSchema.parse(
-          JSON.parse(block.content)
-        );
-        artifact.preCodeSummarize.push(parsed);
-      }
-    }
     artifact.completedSteps.push(step);
     artifact.currentOutput = result;
     artifact.iterationCount = 0;
+    const readmeMatch = step.match(/#README\.md#/);
+    if (readmeMatch) {
+      extractMarkdownAndSave(result);
+    } else {
+      const extractedCodeInfos: CodeUnifiedInfo[] =
+        await saveMarkdownCodeBlocksToFile(result);
+      // Context reset: only the structured artifact crosses session boundaries
+      for (const info of extractedCodeInfos) {
+        if (artifact.remainingSteps.length === 0) {
+          return;
+        }
+        const codeSummarize = await runSummarizer(
+          provider,
+          info.code,
+          info.path
+        );
+        const cleaned = extractMarkdownCodeBlocks(codeSummarize);
+        console.log(cleaned);
+
+        for (const block of cleaned) {
+          const parsed: CodeAnalysisResult = CodeAnalysisSchema.parse(
+            JSON.parse(block.content)
+          );
+          artifact.preCodeSummarize.push(parsed);
+        }
+      }
+    }
   }
 
   // 4. Final summary

@@ -18,16 +18,18 @@ description: Summarizer's working standards.
 
 You will receive multiple files in the following format:
 
+```json
 [
-{
-"relative_path": "/path/to/file1.py",
-"code": "..."
-},
-{
-"relative_path": "/path/to/file2.py",
-"code": "..."
-}
+  {
+    "relative_path": "/path/to/file1.py",
+    "code": "..."
+  },
+  {
+    "relative_path": "/path/to/file2.py",
+    "code": "..."
+  }
 ]
+```
 
 ---
 
@@ -50,7 +52,7 @@ For EACH file, extract:
 - parameters (name, type, description)
 - returns (type, description)
 - visibility
-- class (or null)
+- class _(optional — omit this field entirely if the function is not part of a class)_
 
 > **Note:** Do NOT extract or list any local variables declared inside function bodies. Only the function signature and behavior matter here.
 
@@ -84,24 +86,48 @@ Fields to capture per variable:
 
 ---
 
+### 5. Dependencies
+
+- module
+- symbols
+- purpose
+
+---
+
+### 6. Relationships (STRICTLY WITHIN FILE)
+
+- function_calls
+- variable_usage
+
+> **Note:** `variable_usage` should only reference global or class-member variables. Do NOT include local variables from function bodies.
+
+---
+
 ## Output Format
 
 Return ONLY valid JSON. No explanation.
 
+```json
 {
-"files": [
-{
-"file": {
-"file_name": "",
-"relative_path": "",
-"summary": ""
-},
-"apis": [],
-"variables": [],
-"classes": [],
+  "files": [
+    {
+      "file": {
+        "file_name": "",
+        "relative_path": "",
+        "summary": ""
+      },
+      "apis": [],
+      "variables": [],
+      "classes": [],
+      "dependencies": [],
+      "relationships": {
+        "function_calls": [],
+        "variable_usage": []
+      }
+    }
+  ]
 }
-]
-}
+```
 
 ---
 
@@ -112,9 +138,18 @@ Return ONLY valid JSON. No explanation.
 - If two files have functions with the same name, keep them separate.
 - Do NOT infer cross-file calls unless explicitly visible in the same file.
 - Use "unknown" for missing types.
-- Use null where appropriate.
+- Omit optional fields entirely when they have no value — do not set them to null.
 - Empty sections must be [].
 - Be concise but precise.
 - **NEVER include local variables (scope: "local") anywhere in the output — not in `variables`, not in `relationships.variable_usage`, not anywhere.**
+
+---
+
+## Optional (Advanced Behavior)
+
+If imports reference another file in the input:
+
+- You may note the dependency in "dependencies"
+- BUT DO NOT merge or inline its APIs
 
 ---

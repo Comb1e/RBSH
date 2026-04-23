@@ -1,6 +1,8 @@
 # Main Problem
 
-Using the network parameters, system demands, unit commitment statuses, and other data provided in the attached file P6.xls, determine the economic dispatch schedule for 12:00 PM. The objective is to minimize the total operating cost while satisfying all system physical constraints and individual unit operational constraints.
+Using the network parameters, system demands, unit commitment statuses, and other data provided in the attached file P6.xls, determine the economic dispatch schedule for 12:00 PM.
+The objective is to minimize the total operating cost while satisfying all system physical constraints and individual unit operational constraints.
+Note that The objective function is a quadratic function, and the constraints are linear equations or inequalities.
 
 Workflow:
 
@@ -10,5 +12,5 @@ Workflow:
 
 Requirements:
 
-1. Use linear programming or integer programming methods.
-2. Implement the solution in Python 3.13 with a modular structure, orchestrated by a main.py entry point.
+1. Implement the solution in python3.13, use main.py for overall calling.
+2. Output as a excel. The name is "Output.xls"

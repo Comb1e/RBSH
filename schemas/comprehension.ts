@@ -47,6 +47,7 @@ const ColumnSchema = z.object({
     "LABEL",
     "IRRELEVANT",
     "UNKNOWN",
+    "CONFIG",
   ]),
   taskRoleReason: z
     .string()
@@ -85,6 +86,7 @@ const ColumnGroupSchema = z.object({
       "LABEL",
       "IRRELEVANT",
       "UNKNOWN",
+      "CONFIG",
     ])
     .describe("shared taskRole"),
   taskRoleReason: z
@@ -97,6 +99,15 @@ const ColumnGroupSchema = z.object({
 
 const SheetSchema = z.object({
   sheetName: z.string(),
+  sheetRole: z.enum([
+    "FACT",
+    "DIMENSION",
+    "CONFIG",
+    "LOOKUP",
+    "OUTPUT",
+    "STAGING",
+    "UNKNOWN",
+  ]),
   columns: z.array(ColumnSchema),
   columnGroups: z.array(ColumnGroupSchema).optional().default([]),
 });

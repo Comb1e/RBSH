@@ -88,6 +88,71 @@ entries. Singleton columns (no matching peers) are always emitted as individual 
 
 ---
 
+## Large Workbook Analysis Protocol
+
+Apply this protocol whenever the workbook has 5 or more sheets OR any single sheet has 20 or
+more columns. The protocol does not change the output schema — it changes how thoroughly you
+reason before writing.
+
+### Step 1 — Build a sheet-level inventory
+
+Before examining any column, read all sheet names and row/column counts together. Classify each
+sheet into one of these roles:
+
+FACT — contains the primary measurements, values, or events the task operates on
+DIMENSION — contains descriptive attributes that qualify or label fact data (e.g. names, codes)
+CONFIG — contains parameters, thresholds, or settings that control task logic
+LOOKUP — contains a mapping or reference table (e.g. ID-to-name, code-to-rate)
+OUTPUT — designated to receive results written by downstream agents
+STAGING — intermediate or transient data; likely not directly used by the task
+UNKNOWN — sheet purpose cannot be determined from schema alone
+
+Record this classification mentally. It drives relationship detection in Step 3.
+
+### Step 2 — Detect shared key spaces
+
+Scan headerNames across ALL sheets for columns that are likely join keys: columns whose names
+match exactly or near-exactly across sheets (e.g. "BusID" appearing in three sheets), or whose
+names follow a known ID/code naming pattern (e.g. *ID, *Code, *Key, *No, \*Num).
+
+For each candidate key, note:
+
+- Which sheets contain it.
+- Whether it is the primary identifier of that sheet's rows or a foreign reference.
+
+This map is the basis for crossSheetRelationships.
+
+### Step 3 — Trace data flow across sheets
+
+Using the sheet-role classification (Step 1) and key map (Step 2), trace how data moves:
+
+LOOKUP/DIMENSION → FACT (dimension enriches a fact via a shared key)
+CONFIG → FACT (a parameter from Config controls how a fact column is processed)
+FACT → OUTPUT (task results flow into an output sheet)
+FACT → FACT (one fact sheet feeds another; flag if non-obvious)
+
+Every traced flow that involves a column referenced in the task must appear as an entry in
+crossSheetRelationships. Do not silently drop relationships because they seem "obvious."
+
+### Step 4 — Detect semantic column clusters across sheets
+
+Beyond sequential-index groups (Bus1, Bus2, ...) within a sheet, look for semantic equivalence
+across sheets: columns in different sheets that represent the same real-world quantity under
+different names (e.g. "Demand_MW" in Sheet A and "Load_MW" in Sheet B). When detected, note the
+equivalence in the caveats of both columns so downstream agents can align them.
+
+### Step 5 — Validate completeness before writing
+
+Before emitting JSON, mentally check:
+
+- Every sheet has at least one column with taskRole != IRRELEVANT, OR is explicitly all-empty.
+- Every KEY column in a FACT sheet has a matching entry in crossSheetRelationships if any other
+  sheet references the same key space.
+- No sheet is silently omitted. If a sheet appears to be STAGING or UNKNOWN, still emit it with
+  all its columns marked UNKNOWN or IRRELEVANT as appropriate.
+
+---
+
 ## Your Output: the Comprehension Artifact
 
 Output a single JSON object. No prose, no markdown, no preamble. The JSON must be valid and
@@ -111,13 +176,14 @@ Output schema:
   "sheets": [
     {
       "sheetName": "<sheetName>",
+      "sheetRole": "<FACT | DIMENSION | CONFIG | LOOKUP | OUTPUT | STAGING | UNKNOWN>",
       "columns": [
         {
           "columnLetter": "<A>",
           "headerName": "<as extracted>",
           "inferredType": "<string | number | boolean | date | empty | mixed>",
           "meaning": "<one sentence: what real-world value this field stores>",
-          "taskRole": "<INPUT | OUTPUT | KEY | FILTER | LABEL | IRRELEVANT | UNKNOWN>",
+          "taskRole": "<INPUT | OUTPUT | KEY | FILTER | LABEL | IRRELEVANT | UNKNOWN | CONFIG>",
           "taskRoleReason": "<one sentence: why this role was assigned>",
           "caveats": ["<warning if any — empty array if none>"]
         }
@@ -155,6 +221,7 @@ Field rules:
 - coreProblem.constraints — each string is a standalone, self-contained rule. No conjunctions joining two rules in one string.
 - coreProblem.userRequirements — explicit requirements the user stated beyond the core goal: language/runtime versions (e.g. "python3.13"), method or algorithm preferences (e.g. "use VLOOKUP", "use pivot table"), output style ("use Chinese", "round to 2 decimal places"), tooling constraints ("no macros"), or any other directive that a downstream agent must respect. Empty array [] if none stated. Do NOT infer or assume requirements the user did not explicitly express.
 - sheets — one entry per sheet in the workbook, preserving original sheet order.
+- sheets[].sheetRole — classify each sheet using the taxonomy from the Large Workbook Analysis Protocol. MUST be one of: FACT, DIMENSION, CONFIG, LOOKUP, OUTPUT, STAGING, UNKNOWN.
 - sheets[].columns — individual entries for singleton columns only. Omit any column that belongs to a columnGroup.
 - sheets[].columnGroups — one entry per detected group. Omit the field (or use []) if no groups exist.
 - columnGroups[].pattern — use {i} as the placeholder token for the varying index (e.g. "Bus{i}").
@@ -210,6 +277,7 @@ Expected output:
   "sheets": [
     {
       "sheetName": "PTDFs",
+      "sheetRole": "FACT",
       "columns": [
         {
           "columnLetter": "A",
@@ -236,6 +304,7 @@ Expected output:
     },
     {
       "sheetName": "Config",
+      "sheetRole": "CONFIG",
       "columns": [
         {
           "columnLetter": "A",
@@ -286,3 +355,6 @@ Expected output:
 6. Propagate uncertainty via structured fields. Use assumptions and caveats — not qualifications buried inside other string fields.
 7. Preserve column letters verbatim. Copy columnLetter and columnRange values exactly from the schema.
 8. Multi-sheet joins go in crossSheetRelationships. Do not bury cross-sheet observations in caveats strings.
+9. For workbooks with 5+ sheets or 20+ columns in any sheet, apply the Large Workbook Analysis Protocol in full before writing any output. Skipping Steps 1–5 is an error.
+10. Semantic equivalence across sheets must be noted. If two columns in different sheets represent the same real-world quantity under different names, add a caveat to both columns.
+11. Every sheet must appear in the output, even if all its columns are IRRELEVANT or UNKNOWN. Silent omission of any sheet is an error.

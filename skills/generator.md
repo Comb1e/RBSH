@@ -111,6 +111,67 @@ explicitly, always honour it. Otherwise apply the table below.
 - Do not include placeholder TODO comments unless the task asks for a skeleton.
 - If the task specifies a function/class signature, match it exactly.
 
+#### Variable Naming Consistency
+
+Inconsistent variable names across functions and files are a primary source of confusion in long
+generated code. Apply every rule below without exception.
+
+**Rule 1 — Establish a name, then freeze it.**
+Before writing any function, mentally assign one canonical name to each domain concept (e.g. the
+input file path, the parsed record, the running total). Use that exact name — same spelling, same
+case — everywhere that concept appears: parameters, local variables, loop iterators, docstrings,
+and comments. Never rename a concept mid-file or across files without an explicit alias.
+
+**Rule 2 — Cross-function and cross-file identity.**
+When the same data flows through multiple functions or modules, the variable name must not change
+at the call boundary. If `record` enters `parse()`, the caller stores the return value as
+`record`, not `row`, `item`, `entry`, or `obj`. Exceptions are allowed only when a transformation
+genuinely changes the concept (e.g. `raw_bytes` → `decoded_text` after decoding).
+
+**Rule 3 — Prohibited synonym clusters.**
+Never use two or more names from the same synonym cluster within the same codebase unless they
+refer to demonstrably different things:
+
+| Concept | Pick ONE, never mix |
+|---|---|
+| Input file path | `filepath`, `path`, `filename`, `fpath`, `file_path` |
+| Single data record | `record`, `row`, `item`, `entry`, `obj`, `element` |
+| Accumulator / running total | `total`, `acc`, `accumulator`, `result`, `sum_` |
+| Index / counter | `i`, `idx`, `index`, `n`, `count` |
+| Temporary / intermediate value | `tmp`, `temp`, `buf`, `buffer`, `interim` |
+| Output / return value | `out`, `output`, `result`, `ret`, `response` |
+
+**Rule 4 — Consistent casing convention per language.**
+
+| Language | Variables and params | Constants | Classes |
+|---|---|---|---|
+| Python | `snake_case` | `UPPER_SNAKE` | `PascalCase` |
+| C / C++ | `snake_case` or `camelCase` — pick one, never mix | `UPPER_SNAKE` | `PascalCase` |
+| JavaScript / TypeScript | `camelCase` | `UPPER_SNAKE` | `PascalCase` |
+| Bash | `lower_snake` | `UPPER_SNAKE` | n/a |
+
+Never mix conventions within a single file (e.g. do not write `recordCount` in one function and
+`record_count` in another in the same Python module).
+
+**Rule 5 — Loop and lambda variables.**
+Short loop variables (`i`, `k`, `x`) are acceptable only for indexes over pure numeric ranges or
+truly generic one-liner lambdas. For any loop that iterates over domain objects, use the domain
+name: `for record in records`, `for filepath in filepaths`, not `for x in data`.
+
+**Rule 6 — Pre-generation glossary for multi-file or multi-function tasks.**
+When the task requires generating more than one file, or more than three functions that share
+data, silently build a glossary of canonical names before writing the first line of code. Apply
+this glossary strictly — if a later function would naturally reach for a synonym, override that
+impulse and use the glossary name instead.
+
+Example internal glossary (never emitted, kept in working memory only):
+
+    filepath  — path to the input CSV (str | Path)
+    record    — one parsed dict from the CSV reader
+    totals    — dict[str, float] accumulating column sums
+    counts    — dict[str, int] accumulating non-null cell counts
+    result    — final dict[str, float] of per-column means
+
 ### For config / data tasks
 
 - Validate structure mentally before output (correct nesting, no duplicate keys, valid types).
@@ -178,7 +239,9 @@ Before producing output, silently work through:
 1. **Task type** — What am I being asked to generate?
 2. **Language tag** — Which tag from Section 1 applies?
 3. **Constraints** — Length, style, signature, schema, edge cases?
-4. **Completeness check** — Does my planned output answer the full prompt?
+4. **Variable glossary** — For code tasks: assign one canonical name per domain concept and commit
+   to it before writing any function. (See Section 3 → Variable Naming Consistency, Rule 6.)
+5. **Completeness check** — Does my planned output answer the full prompt?
 
 Do this reasoning internally. Do not emit a reasoning trace in the response.
 
@@ -410,6 +473,9 @@ Released under the [MIT License](LICENSE).
 | Unfenced output | Plain text with no fences | Always wrap in fences |
 | Markdown inside `text` block | Using `#` headings in a `text`-tagged block | Switch to `markdown` tag |
 | Missing closing fence | Opening fence with no closing ` ``` ` | Always close the block |
+| Synonym drift | `row` in one function, `record` in another for the same concept | Build glossary before writing; freeze names |
+| Case mixing | `recordCount` and `record_count` in the same file | Pick one casing convention per language and apply it everywhere |
+| Opaque loop variable | `for x in data` iterating over domain objects | Use `for record in records`, `for filepath in filepaths`, etc. |
 
 ---
 
@@ -425,4 +491,6 @@ Before finalising your response, verify:
 - [ ] Content fully answers the prompt
 - [ ] Code is runnable / prose is complete and coherent
 - [ ] If README: Introduction and Quick Start sections are both present and complete
+- [ ] If code: every domain concept has exactly one canonical variable name used consistently
+      across all functions and files (no synonym drift, no case mixing, no opaque loop vars)
 ````

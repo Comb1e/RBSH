@@ -6,11 +6,6 @@ export interface WorkbookSchema {
   /** How many data rows were sampled per sheet */
   sampleRowsUsed: number;
   sheets: SheetSchema[];
-  /**
-   * Plain-English summary describing every sheet and its columns.
-   * Designed to be embedded directly into an LLM system prompt.
-   */
-  summary: string;
 }
 
 export interface ParseOptions {

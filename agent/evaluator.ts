@@ -7,6 +7,7 @@
 import type { LLMProvider } from "@/types/index.js";
 import type { CodeAnalysisResult } from "@/schemas/index.js";
 import { getEvaluatorPrompt } from "@/prompts/index.js";
+import { env } from "../config/env.js";
 
 export async function runEvaluator(
   provider: LLMProvider,
@@ -28,8 +29,12 @@ export async function runEvaluator(
     inputSchemaDescription,
     preCodeSummarize
   );
-  const unifiedMessages = await provider.complete(unifiedPrompt);
-  const raw = unifiedMessages.content;
-
-  return raw;
+  for (let iter = 1; iter <= env.AGENT_MAX_ITERATIONS; iter++) {
+    const messages = await provider.complete(unifiedPrompt);
+    if (messages.content != "") {
+      return messages.content;
+    }
+    console.log("[WARN] Evaluator returned empty content; retrying...");
+  }
+  return "ERROR";
 }

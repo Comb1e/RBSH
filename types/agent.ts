@@ -12,7 +12,6 @@ export interface HandoffArtifact {
   currentOutput: string;
   iterationCount: number;
   preCodeSummarize: CodeAnalysisResult[];
-  preMaxOutput: string;
 }
 
 export interface ScoreExtractionResult {

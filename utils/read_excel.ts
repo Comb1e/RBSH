@@ -150,19 +150,6 @@ function buildSheetSchema(
   };
 }
 
-function buildSummary(fileName: string, sheets: SheetSchema[]): string {
-  const lines = sheets.map((s) => {
-    if (s.totalColumns === 0) return `  • "${s.sheetName}" – empty sheet`;
-    const cols = s.columns
-      .map((c) => `"${c.headerName}" (${c.inferredType})`)
-      .join(", ");
-    return `  • "${s.sheetName}" – ${s.totalRows - 1} data rows × ${
-      s.totalColumns
-    } columns: ${cols}`;
-  });
-  return `File: ${fileName}\nSheets (${sheets.length}):\n${lines.join("\n")}`;
-}
-
 // ─── Public API ───────────────────────────────────────────────────────────────
 
 /**
@@ -222,7 +209,6 @@ export function parseExcelSchema(
     generatedAt: new Date().toISOString(),
     sampleRowsUsed: sampleSize,
     sheets,
-    summary: buildSummary(fileName, sheets),
   };
 }
 
@@ -293,7 +279,6 @@ Examples:
     });
     const written = outputFile ?? inputFile.replace(/\.[^.]+$/, "-schema.json");
     console.log(`Written: ${written}`);
-    console.log("\nSummary:\n" + schema.summary);
   } catch (err) {
     console.error(`Error: ${(err as Error).message}`);
     process.exit(1);

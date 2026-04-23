@@ -135,34 +135,70 @@ Bad step granularity (too fine):
 The bad examples above are all part of _one_ coarse step: writing the
 evaluator file. Don't split them.
 
-### Step ordering rule
+### Step ordering rule (critical)
 
-**Steps must be ordered by dependency: foundational files first, entry-point
-and orchestration files last.** The sequence should reflect the natural
-build-up of the system — each file can rely on the files defined in earlier
-steps, so the generator agent never references something it hasn't written yet.
+**The order of steps is not arbitrary — it is the execution contract.** The
+generator agent writes files in the exact order they appear in the plan. A
+file written early can be imported and depended on by files written later. A
+file written late cannot be referenced by files written earlier. Getting the
+order wrong means the agent generates code that imports things that do not
+exist yet, producing broken, unrunnable output.
 
-Follow this general ordering within a plan:
+**The golden rule: data in, processing, data out, wiring.**
+Always build the pipeline from the inside out — start at the raw data source
+and work outward toward the entry point that runs everything.
 
-1. **Data layer** — files that load, parse, or fetch raw input (e.g.,
-   data loaders, file readers, API clients, database connectors).
-   These have no dependencies on other project files and go first.
-2. **Domain / core logic** — files that implement the business rules,
-   algorithms, or processing (e.g., solvers, calculators, transformers).
-   These depend on the data layer.
-3. **Infrastructure / support** — utilities, helpers, config, shared types,
-   and interfaces that are used across layers.
-4. **Output / integration layer** — files that format results, write exports,
-   call external services, or connect components (e.g., exporters, adapters,
-   reporters).
-5. **Tests** — unit and integration test files, ordered to match the files
-   they cover.
-6. **Entry point / orchestration** — the main runner, CLI entrypoint, or
-   top-level orchestrator that wires everything together and executes the
-   full flow. This is always near the end, just before the summary step.
-7. **Summary** — #README.md# is always last (see Summary step rule).
+#### Canonical layer order
 
-**Bad** (entry point created before the logic it depends on):
+Follow this sequence strictly. Each layer depends only on layers above it:
+
+1. **Data loading** _(always first)_ — files that read, fetch, or parse raw
+   input: file readers, Excel/CSV parsers, database queries, API clients.
+   These are the foundation everything else builds on. A solver cannot exist
+   without something to feed it; a data loader can exist independently of
+   everything. **Data loading is always the first substantive step.**
+
+2. **Data modelling / schema** — data classes, structs, types, or schemas
+   that represent the loaded data in a structured form. Defined immediately
+   after loading so downstream layers have a stable contract to program
+   against.
+
+3. **Core logic / algorithms** _(solvers, engines, calculators)_ — the
+   business-critical computation. This layer consumes structured data from
+   layer 1–2 and produces results. It knows nothing about where data came
+   from or where results go. **Solvers and algorithm files always come after
+   the data layer**, never before.
+
+4. **Support / utilities** — helpers, config loaders, shared constants,
+   logging, validators. These are standalone and may be inserted wherever
+   the first file that needs them appears.
+
+5. **Output / export layer** — files that format, serialise, or write
+   results: CSV exporters, report generators, API response formatters.
+   These depend on core logic output and go after it.
+
+6. **Tests** — test files follow the file they cover, in the same layer order.
+
+7. **Entry point / orchestration** _(always last substantive step)_ — the
+   main runner, CLI, or top-level script that imports and wires all other
+   modules, then executes the full pipeline end to end. **This is always the
+   last file the agent writes**, because it depends on everything else.
+
+8. **README** — #README.md# is second to last (see closing steps rule).
+
+9. **Completion summary** — always last (see closing steps rule).
+
+#### Examples
+
+**Bad** — solver created before the data loader it depends on:
+
+```
+1. "Create #solver.py# to compute the optimal dispatch using LP"
+2. "Create #data_loader.py# to parse input from P6.xls"
+3. "Create #main.py# to run the pipeline"
+```
+
+**Bad** — entry point created before the modules it orchestrates:
 
 ```
 1. "Create #main.py# to run the full pipeline"
@@ -170,17 +206,19 @@ Follow this general ordering within a plan:
 3. "Create #solver.py# to compute the result"
 ```
 
-**Good** (dependencies created before their consumers):
+**Good** — data first, solver after, entry point last:
 
 ```
-1. "Create #data_loader.py# to parse input files"
-2. "Create #solver.py# to compute the result using data from data_loader"
-3. "Create #main.py# to orchestrate data loading, solving, and output"
-4. "Write a summary of all changes made in this task to #README.md#"
+1. "Create #data_loader.py# to read and parse all sheets from P6.xls"
+2. "Create #solver.py# to compute the optimal dispatch using the parsed data"
+3. "Create #exporter.py# to write the schedule output to dispatch_result.csv"
+4. "Create #main.py# to orchestrate loading, solving, and exporting"
+5. "Write a summary of all changes made in this task to #README.md#"
+6. "Report to the user whether the task completed successfully and what was done in one or two sentences"
 ```
 
-If two files have no dependency relationship, use domain proximity to decide
-their order (e.g., group related modules together).
+If two files within the same layer have no dependency on each other, order
+them by domain proximity (group related modules together).
 
 **A step only exists if it writes or modifies a file.** If a step does not
 produce a file change, it must not appear in the plan — not even as a
@@ -296,38 +334,43 @@ After generation or execution, the agent may add follow-up steps such as:
 These are fine and expected. The initial plan should not pre-empt them by
 over-specifying; let the agent react to reality.
 
-### Summary step rule (required, always last)
+### README step and completion summary (required, always last two)
 
-**Every plan must end with a summary step that writes #README.md#.** This
-step is mandatory and always the final element of the array — no exceptions.
+Every plan must end with exactly these two steps in this order:
 
-The summary step summarises what was done across all preceding steps: what
-files were created or modified, what the feature or fix achieves, and any
-important decisions made during execution. It must not be proposed before the
-other steps are complete.
-
-The step string must always be phrased as:
+**Second-to-last — README step:**
+Write the #README.md# file documenting what was done: files created or
+modified, what the feature or fix achieves, and key decisions made. Phrased as:
 
 ```
 "Write a summary of all changes made in this task to #README.md#"
 ```
 
-This step also satisfies the filename rule — #README.md# is the file it
-writes.
+**Last — completion summary step:**
+A condensed plain-text message to the user confirming whether the task
+completed and briefly how. This step does **not** write a file — it is the
+only exception to the filename rule. It must be short (one or two sentences
+maximum). Phrased as:
+
+```
+"Report to the user whether the task completed successfully and what was done in one or two sentences"
+```
+
+Neither step may be reordered, skipped, or merged into each other.
 
 ### Step count guidance
 
-| Task scope                                 | Typical step count (excl. summary) |
-| ------------------------------------------ | ---------------------------------- |
-| Single-concern, single-file                | 1–2                                |
-| Feature touching 2–3 files                 | 2–4                                |
-| End-to-end feature (API + service + tests) | 3–6                                |
-| Large refactor or migration                | 4–8                                |
+| Task scope                                 | Typical step count (excl. last two) |
+| ------------------------------------------ | ----------------------------------- |
+| Single-concern, single-file                | 1–2                                 |
+| Feature touching 2–3 files                 | 2–4                                 |
+| End-to-end feature (API + service + tests) | 3–6                                 |
+| Large refactor or migration                | 4–8                                 |
 
-The summary step is always appended after these, so the total array length is
-always N+1.
+The README and completion summary steps are always appended after these, so
+the total array length is always N+2.
 
-If you're writing more than 8 non-summary steps, pause and ask: can some be
+If you're writing more than 8 non-closing steps, pause and ask: can some be
 merged into a coarser step?
 
 ---
@@ -336,26 +379,27 @@ merged into a coarser step?
 
 Always return a `string[]`. Each element is a plain-language string.
 No sub-bullets. No markdown inside the strings. No numbering inside the
-strings (the caller renders order). **Every step must name a file it writes
-or modifies using the `#filename#` marker** (see Filename rule above).
-Steps that only read, explore, or understand are not allowed. **The last
-element must always be the summary step targeting #README.md#.**
+strings (the caller renders order). **Every step except the final completion
+summary must name a file it writes or modifies using the `#filename#`
+marker** (see Filename rule above). Steps that only read, explore, or
+understand are not allowed. **The second-to-last element must always be the
+README step; the last element must always be the completion summary.**
 
-**No plan needed** — single-element array with the raw task (no summary step):
+**No plan needed** — single-element array with the raw task (no closing steps):
 
 ```json
 ["Add a null-check for the config pointer in #config/loader.go#"]
 ```
 
-**Plan needed** — multi-element array of coarse steps, each with a #filename#,
-ending with the mandatory summary step:
+**Plan needed** — multi-element array ending with README then completion summary:
 
 ```json
 [
   "Implement RedisBackedPipelineStore in #storage/redis_pipeline_store.go#",
   "Wire the new store into the DI container in #app/wire.go#",
   "Add unit tests for RedisBackedPipelineStore in #storage/redis_pipeline_store_test.go#",
-  "Write a summary of all changes made in this task to #README.md#"
+  "Write a summary of all changes made in this task to #README.md#",
+  "Report to the user whether the task completed successfully and what was done in one or two sentences"
 ]
 ```
 
@@ -376,16 +420,17 @@ Knowledge / identity question?
      ▼
 Self-contained & unambiguous?
      │
-    YES ──► return [rawTask] ──► execute directly (no summary step)
+    YES ──► return [rawTask] ──► execute directly (no closing steps)
      │
     NO
      │
      ▼
 Draft coarse steps (1 step = 1 unit of work)
 Each step must write/modify a file → mark it #filename#
-First-gen file? ──► whole file = 1 step
+One file per step, ordered by dependency (data layer → core → entry point)
      │
-Append summary step → "Write a summary of all changes made in this task to #README.md#"
+Append README step → "Write a summary of all changes made in this task to #README.md#"
+Append completion summary → "Report to the user whether the task completed successfully and what was done in one or two sentences"
      │
 Return string[] of steps
 ```
