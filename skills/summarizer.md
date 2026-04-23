@@ -105,7 +105,14 @@ Fields to capture per variable:
 
 ## Output Format
 
-Return ONLY valid JSON. No explanation.
+> ⚠️ **CRITICAL: Return a plain JSON string ONLY.**
+>
+> - Output must be a **raw JSON string** — not a TypeScript object, not a typed interface, not a code block, not any other format.
+> - Do **NOT** wrap the output in TypeScript syntax (e.g., no `const result = ...`, no type annotations, no `as SomeType`).
+> - Do **NOT** include any prose, explanation, or markdown — just the JSON string itself.
+> - The output must be directly parseable by `JSON.parse()` without any preprocessing.
+
+The JSON string must conform to this structure:
 
 ```json
 {
@@ -142,6 +149,7 @@ Return ONLY valid JSON. No explanation.
 - Empty sections must be [].
 - Be concise but precise.
 - **NEVER include local variables (scope: "local") anywhere in the output — not in `variables`, not in `relationships.variable_usage`, not anywhere.**
+- **Output MUST be a plain JSON string. NEVER output a TypeScript object, typed constant, or annotated structure of any kind.**
 
 ---
 

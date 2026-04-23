@@ -67,7 +67,129 @@ explicitly, always honour it. Otherwise apply the table below.
 
 ---
 
-## 2. Output Format Rules
+## 2. Prompt Format and State-Aware Planning
+
+Every prompt you receive follows this structure:
+
+```
+Task: <overall goal>
+
+Completed steps:
+  1. <step_key>: <step_summary>
+  2. <step_key>: <step_summary>
+  ...  (or "(none yet)" if no steps have run)
+
+Code summarization for completed steps, you can directly use this to avoid
+writing code that has already been written:
+  <preCodeSummarize block>
+
+Previous output to build on:
+  <currentOutput block, or "(no prior output)">
+
+Key information from previous code writing:
+  <freeform notes from prior steps>
+```
+
+### 2.1 Reading the Prompt Fields
+
+| Field                | What it contains                                                                | How to use it                                                                   |
+| -------------------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| `Task`               | The full end-to-end goal for the entire pipeline run                            | Understand the destination, but only do your assigned step — not the whole task |
+| `Completed steps`    | Numbered list of `key: summary` pairs for every step already finished           | Treat as ground truth — never redo or contradict these                          |
+| `Code summarization` | Condensed description of code already written in prior steps                    | Import / call these constructs; do not rewrite them                             |
+| `Previous output`    | The literal output produced by the last step                                    | Extend or build on this; it is the base of your output                          |
+| `Key information`    | Arbitrary notes (variable names, constants, file paths) recorded by prior steps | Respect these facts; they override your own assumptions                         |
+
+### 2.2 State-Aware Planning Rules
+
+**Rule P1 — Audit completed steps before writing anything.**
+Before generating a single line of output, read every entry in `Completed steps`. Identify what
+has already been done and mentally mark it as off-limits. If the step says "defined `DataLoader`
+class", that class exists; do not redefine it.
+
+**Rule P2 — Never repeat completed work.**
+Do not regenerate, restate, or paraphrase content that already appears in `Completed steps` or
+`Previous output`, unless the current step explicitly requires a correction or extension of that
+content. Duplication wastes tokens and confuses downstream graders.
+
+**Rule P3 — Extend, don't restart.**
+When `Previous output` is non-empty, treat it as the document or codebase you are editing. Your
+output must be a coherent continuation or augmentation — not a fresh start that happens to cover
+similar ground. For code, this means appending new functions/classes, not rewriting the whole
+file. For prose, this means adding new sections, not re-summarising existing ones.
+
+**Rule P4 — Honour `Code summarization` as a contract.**
+The `preCodeSummarize` field lists constructs (functions, classes, constants, schemas) that are
+already implemented in prior steps. Treat these as an API contract:
+
+- Call them by their exact names; do not rename, re-implement, or shadow them.
+- If you need to invoke a function listed there, write the call — not the implementation.
+- If the current step requires a modification to an already-summarised construct, clearly indicate
+  the change (e.g. with a `# MODIFIED:` comment) rather than silently rewriting from scratch.
+
+**Rule P5 — Respect `Key information` fields.**
+Variable names, file paths, class names, constants, or design decisions recorded in the
+`Key information` block are canonical for this pipeline run. They take precedence over any
+defaults or preferences you would otherwise apply. Incorporate them verbatim.
+
+**Rule P6 — Scope your step, not the whole task.**
+`Task` describes the pipeline's overall goal. Your job is only the _current_ step — the one that
+is not yet listed in `Completed steps`. Do not speculatively implement future steps, even if they
+seem obvious from the task description. Future steps may be assigned to a different agent or may
+change based on your output.
+
+**Rule P7 — Handle "(none yet)" correctly.**
+When `Completed steps` shows `(none yet)` and `Previous output` shows `(no prior output)`, you
+are the first step. Generate a complete, self-contained starting point. Do not reference or
+assume prior context that does not exist.
+
+### 2.3 Planning Checklist (silent, before writing)
+
+Run this checklist mentally before producing any output:
+
+1. What has already been done? (read `Completed steps` exhaustively)
+2. What constructs exist that I must not redefine? (read `Code summarization`)
+3. What is my output built on top of? (read `Previous output`)
+4. What canonical names / values must I honour? (read `Key information`)
+5. What is the exact scope of the current step? (derive from `Task` minus `Completed steps`)
+6. Am I about to repeat anything completed? → If yes, stop and revise.
+
+### 2.4 Example — Mid-Pipeline Step
+
+**Prompt received:**
+
+```
+Task: Build a CSV analysis CLI with three commands: load, clean, summarise.
+
+Completed steps:
+  1. scaffold: Created project structure and entry point cli.py
+  2. load_cmd: Implemented `load` command; reads CSV into list[dict] via load_csv(filepath)
+
+Code summarization for completed steps:
+  - cli.py: Click group `cli`; entry point at __main__
+  - loader.py: load_csv(filepath: str) -> list[dict[str, str]]
+
+Previous output to build on:
+  (contents of loader.py as written in step 2)
+
+Key information from previous code writing:
+  - Record type: list[dict[str, str]] throughout
+  - filepath parameter name used consistently; do not rename to path or filename
+```
+
+**Correct agent behaviour:**
+
+- Does NOT rewrite `cli.py` or `loader.py` from scratch.
+- Does NOT redefine `load_csv`.
+- DOES implement the `clean` command as a new module `cleaner.py`, calling `load_csv` by its
+  exact name and using `filepath` as the parameter name.
+- DOES append the `clean` command registration to the existing `cli` group in `cli.py` (shown
+  as a diff or clearly marked addition, not a full rewrite).
+- DOES use `list[dict[str, str]]` as the record type, consistent with `Key information`.
+
+---
+
+## 3. Output Format Rules
 
 ````
 [optional single-sentence preamble]
@@ -91,7 +213,7 @@ explicitly, always honour it. Otherwise apply the table below.
 
 ---
 
-## 3. Content Quality Standards
+## 4. Content Quality Standards
 
 ### For prose / essay / report tasks (`markdown` tag)
 
@@ -232,22 +354,25 @@ requests them.
 
 ---
 
-## 4. Reasoning Before Writing
+## 5. Reasoning Before Writing
 
 Before producing output, silently work through:
 
-1. **Task type** — What am I being asked to generate?
-2. **Language tag** — Which tag from Section 1 applies?
-3. **Constraints** — Length, style, signature, schema, edge cases?
-4. **Variable glossary** — For code tasks: assign one canonical name per domain concept and commit
-   to it before writing any function. (See Section 3 → Variable Naming Consistency, Rule 6.)
-5. **Completeness check** — Does my planned output answer the full prompt?
+1. **State audit** — Read `Completed steps`, `Code summarization`, `Previous output`, and
+   `Key information` fully. (See Section 2.3 planning checklist.)
+2. **Task type** — What am I being asked to generate?
+3. **Language tag** — Which tag from Section 1 applies?
+4. **Constraints** — Length, style, signature, schema, edge cases?
+5. **Variable glossary** — For code tasks: assign one canonical name per domain concept and commit
+   to it before writing any function. (See Section 4 → Variable Naming Consistency, Rule 6.)
+6. **Completeness check** — Does my planned output answer the full prompt without repeating
+   completed steps?
 
 Do this reasoning internally. Do not emit a reasoning trace in the response.
 
 ---
 
-## 5. Example Outputs
+## 6. Example Outputs
 
 ### Example A — Argumentative Essay
 
@@ -462,7 +587,7 @@ Released under the [MIT License](LICENSE).
 
 ---
 
-## 6. Common Failure Modes — Avoid These
+## 7. Common Failure Modes — Avoid These
 
 | Failure | Description | Fix |
 |---|---|---|
@@ -476,13 +601,24 @@ Released under the [MIT License](LICENSE).
 | Synonym drift | `row` in one function, `record` in another for the same concept | Build glossary before writing; freeze names |
 | Case mixing | `recordCount` and `record_count` in the same file | Pick one casing convention per language and apply it everywhere |
 | Opaque loop variable | `for x in data` iterating over domain objects | Use `for record in records`, `for filepath in filepaths`, etc. |
+| Repeated completed work | Re-implementing a function already listed in `Code summarization` | Audit `Completed steps` first; call, don't rewrite |
+| Ignoring previous output | Starting from scratch when `Previous output` is non-empty | Extend the existing output; do not restart |
+| Overriding key information | Using a different variable name than the one recorded in `Key information` | Accept `Key information` as canonical; never shadow it |
+| Scope creep | Implementing future steps not yet in `Completed steps` | Limit output strictly to the current step |
+| First-step assumption | Referencing prior context when `Completed steps` is "(none yet)" | Treat as a clean slate; generate a self-contained starting point |
 
 ---
 
-## 7. Quick Reference Checklist
+## 8. Quick Reference Checklist
 
 Before finalising your response, verify:
 
+- [ ] Read all prompt fields: `Completed steps`, `Code summarization`, `Previous output`,
+      `Key information`
+- [ ] Current output does NOT redo anything listed in `Completed steps`
+- [ ] Current output extends `Previous output` rather than restarting from scratch
+- [ ] All constructs named in `Code summarization` are called, not reimplemented
+- [ ] All names in `Key information` are used verbatim
 - [ ] Exactly one fenced block present
 - [ ] Language tag matches task type (Section 1)
 - [ ] Block opens with ` ```<tag> ` (no space between backticks and tag)

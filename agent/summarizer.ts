@@ -13,7 +13,7 @@ export async function runSummarizer(
   path: string
 ): Promise<string> {
   console.log("\n╔══════════════════════════════╗");
-  console.log("║  Summarizer AGENT               ║");
+  console.log("║  Summarizer AGENT            ║");
   console.log("╚══════════════════════════════╝\n");
 
   const unifiedPrompt = await getSummarizerPrompt(code, path);

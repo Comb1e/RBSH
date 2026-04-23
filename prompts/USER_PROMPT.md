@@ -14,3 +14,4 @@ Requirements:
 
 1. Implement the solution in python3.13, use main.py for overall calling.
 2. Output as a excel. The name is "Output.xls"
+3. Use qpsolvers if you know how to use this library in python.
