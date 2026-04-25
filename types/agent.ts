@@ -1,4 +1,6 @@
-import { CodeAnalysisResult } from "@/schemas/index.js";
+import { ToolAnalysisResult } from "@/schemas/index.js";
+import type { ChatCompletionMessageToolCall } from "openai/resources/chat/completions";
+import { OpenAI } from "openai/client.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -9,9 +11,8 @@ export interface HandoffArtifact {
   task: string;
   completedSteps: string[];
   remainingSteps: string[];
-  currentOutput: string;
   iterationCount: number;
-  preCodeSummarize: CodeAnalysisResult[];
+  preToolSummarize: ToolAnalysisResult[];
 }
 
 export interface ScoreExtractionResult {
@@ -37,40 +38,44 @@ export interface UnifiedAgentOptions {
 }
 
 export interface LLMProvider {
-  complete(unifiedPrompt: UnifiedAgentPrompt): Promise<LLMCompletionResult>; // Call LLM
+  complete(
+    message: AgentMessage[],
+    tools: OpenAI.Chat.ChatCompletionTool[]
+  ): Promise<LLMCompletionResult>; // Call LLM
 }
 
-export interface UnifiedAgentPrompt {
-  system: string;
-  user: string;
+export interface AgentMessage {
+  role: "system" | "user" | "assistant" | "tool";
+  content: string;
+  tool_calls?: ChatCompletionMessageToolCall[];
+  tool_call_id?: string;
+  name?: string;
 }
 
 export interface UnifiedToolCall {
   id: string;
   name: string;
-  arguments: Record<string, any>;
-}
-
-export interface UnifiedMessage {
-  role: "system" | "user" | "assistant" | "tool";
-  content: string;
-  toolCallId?: string;
-}
-
-export interface UnifiedTool {
-  name: string;
-  description: string;
-  parameters: Record<string, any>; // JSON Schema
-  execute: (args: Record<string, any>) => Promise<any>;
+  argStr: string;
 }
 
 export interface LLMCompletionResult {
   content: string;
+  messages: AgentMessage[];
   toolCalls?: UnifiedToolCall[];
+}
+
+export interface GeneratorCompletionResult {
+  content: string;
+  toolSummarization?: ToolAnalysisResult[];
 }
 
 export interface SkillMetadata {
   name: string;
   description: string;
   func: string[];
+}
+
+export interface GeneratorEvaluatorLoopCompletion {
+  content: string;
+  toolSummarization?: ToolAnalysisResult[];
 }

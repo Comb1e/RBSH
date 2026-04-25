@@ -123,8 +123,8 @@ const CrossSheetRelationshipSchema = z.object({
 
 const ExtractionResultSchema = z.object({
   coreProblem: CoreProblemSchema,
-  sheets: z.array(SheetSchema),
-  crossSheetRelationships: z.array(CrossSheetRelationshipSchema),
+  sheets: z.array(SheetSchema).optional(),
+  crossSheetRelationships: z.array(CrossSheetRelationshipSchema).optional(),
 });
 
 // Infer the TypeScript type from the schema

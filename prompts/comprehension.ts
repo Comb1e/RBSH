@@ -1,5 +1,4 @@
-import type { UnifiedAgentPrompt } from "@/types/index.js";
-import type { CodeAnalysisResult } from "@/schemas/index.js";
+import type { AgentMessage } from "@/types/index.js";
 import { readFilesFromRecord } from "@/utils/get_params.js";
 
 const comprehensionBase = {
@@ -9,7 +8,7 @@ const comprehensionBase = {
 export async function getComprehensionPrompt(
   user_prompt: string,
   inputSchemas: string[]
-): Promise<UnifiedAgentPrompt> {
+): Promise<AgentMessage[]> {
   const basicSkills = await readFilesFromRecord(comprehensionBase);
   const systemPrompt = `
   === BASIC SKILLS ===
@@ -25,8 +24,11 @@ export async function getComprehensionPrompt(
 
     `.trim();
 
-  return {
-    system: systemPrompt,
-    user: userPrompt,
-  };
+  return [
+    {
+      role: "system",
+      content: systemPrompt,
+    },
+    { role: "user", content: userPrompt },
+  ];
 }

@@ -1,11 +1,12 @@
 import OpenAI from "openai";
+import type { ChatCompletionMessageToolCall } from "openai/resources/chat/completions";
 import {
   LLMProvider,
   LLMCompletionResult,
-  UnifiedAgentPrompt,
+  UnifiedToolCall,
+  AgentMessage,
 } from "@/types/index.js";
 import { env } from "../config/env.js";
-import { tools } from "../tools/weather.js";
 
 export class OpenAIProvider implements LLMProvider {
   private client: OpenAI;
@@ -16,55 +17,89 @@ export class OpenAIProvider implements LLMProvider {
     });
   }
 
-  async complete(prompt: UnifiedAgentPrompt): Promise<LLMCompletionResult> {
-    let messages: string = "";
-    const systemPrompt = prompt.system ? prompt.system : "";
-    const userPrompt = prompt.user ? prompt.user : "";
+  async complete(
+    agentMessages: AgentMessage[],
+    tools: OpenAI.Chat.ChatCompletionTool[]
+  ): Promise<LLMCompletionResult> {
     try {
+      const openaiMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] =
+        Array.isArray(agentMessages)
+          ? agentMessages.map((msg) => {
+              const base = {
+                role: msg.role as any,
+                content: msg.content,
+              };
+
+              if (msg.role === "assistant" && (msg as any).tool_calls) {
+                return {
+                  ...base,
+                  tool_calls: (msg as any).tool_calls,
+                } as OpenAI.Chat.Completions.ChatCompletionAssistantMessageParam;
+              }
+
+              if (msg.role === "tool" && msg.tool_call_id) {
+                return {
+                  ...base,
+                  tool_call_id: msg.tool_call_id,
+                } as OpenAI.Chat.Completions.ChatCompletionToolMessageParam;
+              }
+
+              return base as
+                | OpenAI.Chat.Completions.ChatCompletionUserMessageParam
+                | OpenAI.Chat.Completions.ChatCompletionSystemMessageParam;
+            })
+          : [];
       const stream = await this.client.chat.completions.create({
         model: env.OPENAI_MODEL,
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt },
-        ],
+        messages: openaiMessages,
         temperature: env.AGENT_TEMPERATURE,
         stream: true,
         tools: tools,
       });
-
+      let unifiedToolCalls: Record<number, UnifiedToolCall> = {};
+      let currentMessage: string = "";
       for await (const chunk of stream) {
-        const content = chunk.choices[0]?.delta?.content || "";
-        process.stdout.write(content);
-        messages += content;
+        const delta = chunk.choices[0]?.delta;
+        const tool_calls = delta?.tool_calls;
+        const content = delta?.content;
+        if (tool_calls) {
+          for (const toolCallChunk of tool_calls) {
+            const index = toolCallChunk.index;
+            const id = toolCallChunk.id;
+            const functionName = toolCallChunk.function?.name;
+            const argsFragment = toolCallChunk.function?.arguments;
+
+            if (!unifiedToolCalls[index]) {
+              unifiedToolCalls[index] = {
+                id: "",
+                name: "",
+                argStr: "",
+              };
+            }
+            if (id) unifiedToolCalls[index].id = id;
+            if (functionName) unifiedToolCalls[index].name = functionName;
+            if (argsFragment) {
+              unifiedToolCalls[index].argStr += argsFragment;
+            }
+          }
+        }
+        if (content) {
+          process.stdout.write(content);
+          currentMessage += content;
+        }
       }
+      const openaiToollCalls = convertToOpenAIToolCalls(unifiedToolCalls);
+      agentMessages.push({
+        role: "assistant",
+        content: currentMessage,
+        tool_calls: openaiToollCalls,
+      });
+      const toolCallsArray: UnifiedToolCall[] = Object.values(unifiedToolCalls);
       return {
-        content: messages,
+        content: currentMessage,
+        messages: agentMessages,
+        toolCalls: toolCallsArray,
       };
-
-      `const choice = res.choices[0];
-      const message = choice.message;
-      const content = message.content;
-      const toolCalls = message.tool_calls;
-
-      if (!toolCalls || toolCalls.length === 0) {
-        return {
-          content: content || "",
-        };
-      }
-
-      for (const toolCall of toolCalls) {
-        const { name, arguments: argsStr, id } = toolCall.function;
-        const args = JSON.parse(argsStr);
-      }
-
-      return {
-        content: content || "",
-        toolCalls: choice.message?.tool_calls?.map((tc) => ({
-          id: tc.id,
-          name: tc.function.name,
-          arguments: JSON.parse(tc.function.arguments),
-        })),
-      };`;
     } catch (error) {
       if (error instanceof OpenAI.APIError) {
         console.log("Status:", error.status);
@@ -75,7 +110,21 @@ export class OpenAIProvider implements LLMProvider {
       }
       return {
         content: "ERROR",
+        messages: agentMessages,
       };
     }
   }
+}
+
+function convertToOpenAIToolCalls(
+  accumulatedCalls: Record<number, UnifiedToolCall>
+): ChatCompletionMessageToolCall[] {
+  return Object.values(accumulatedCalls).map((call) => ({
+    id: call.id,
+    type: "function" as const,
+    function: {
+      name: call.name,
+      arguments: call.argStr,
+    },
+  }));
 }

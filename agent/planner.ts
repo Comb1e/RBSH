@@ -22,12 +22,12 @@ export async function runPlanner(
   );
 
   // Planner needs no file-system tools — disable them all for minimum footprint
-  let messages: LLMCompletionResult = { content: "" };
   let raw = "";
   for (let iter = 1; iter <= env.AGENT_MAX_ITERATIONS; iter++) {
-    messages = await provider.complete(unifiedPrompt);
-    if (messages.content != "") {
-      raw = messages.content;
+    const completion = await provider.complete(unifiedPrompt, []);
+    if (completion.content != "") {
+      raw = completion.content;
+      break;
     }
     console.log("[WARN] Planner returned empty content; retrying...");
   }

@@ -267,3 +267,34 @@ export async function extractMarkdownAndSave(text: string): Promise<string[]> {
   await fs.writeFile(path.join(OUTPUT_PATH, "README.md"), results[0]);
   return results;
 }
+
+/**
+ * Extracts the content inside ```task-complete``` blocks from a given string.
+ *
+ * @param input - The input string containing one or more task-complete blocks.
+ * @returns An array of strings, each representing the content extracted from a block.
+ */
+export function extractTaskCompleteContent(input: string): string | null {
+  // Regex explanation:
+  // ```task-complete\n : Matches the opening fence specifically for task-complete
+  // ([\s\S]*?)       : Captures any character (including newlines) non-greedily
+  // \n```            : Matches the closing fence
+  const regex = /```task-complete\n([\s\S]*?)\n```/;
+
+  const match = input.match(regex);
+
+  if (match && match[1] !== undefined) {
+    return match[1];
+  }
+
+  return null;
+}
+
+export function serializeResult(result: unknown): string {
+  if (result === null) return "null";
+  if (result === undefined) return "undefined";
+
+  if (typeof result === "string") return result;
+
+  return JSON.stringify(result);
+}

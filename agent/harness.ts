@@ -6,26 +6,16 @@
 import { runPlanner } from "./planner.js";
 import { runGenerator } from "./generator.js";
 import { runEvaluator } from "./evaluator.js";
-import { runSummarizer } from "./summarizer.js";
 import { runComprehension } from "./comprehension.js";
 import type {
   HandoffArtifact,
   LLMProvider,
   ScoreExtractionResult,
-  CodeUnifiedInfo,
+  GeneratorEvaluatorLoopCompletion,
 } from "@/types//index.js";
 import { env } from "../config/env.js";
 import { readFilesFromRecord, extractOverallScore } from "@/utils/index.js";
-import {
-  saveMarkdownCodeBlocksToFile,
-  extractMarkdownCodeBlocks,
-  extractMarkdownAndSave,
-} from "@/utils/output.js";
-import type { CodeAnalysisResult } from "@/schemas/index.js";
-import {
-  CodeAnalysisSchema,
-  extractSpreadsheetAnalysis,
-} from "@/schemas/index.js";
+import { extractSpreadsheetAnalysis } from "@/schemas/index.js";
 
 // ---------------------------------------------------------------------------
 // Harness: Generator ↔ Evaluator loop
@@ -38,20 +28,20 @@ async function generatorEvaluatorLoop(
   background: string,
   artifact: HandoffArtifact,
   inputSchemaDescription: string
-): Promise<string> {
-  let currentOutput = artifact.currentOutput;
-
+): Promise<GeneratorEvaluatorLoopCompletion> {
+  let evaluationStr: string = "";
   for (let iter = 1; iter <= env.AGENT_MAX_ITERATIONS; iter++) {
     artifact.iterationCount = iter;
-    artifact.currentOutput = currentOutput;
 
     // --- Generate ---
-    const draft = await runGenerator(
+    const generatorCompletion = await runGenerator(
       provider,
       artifact,
       background,
       inputSchemaDescription
     );
+    const draft = generatorCompletion.content;
+    const toolSummarization = generatorCompletion.toolSummarization;
 
     // --- Evaluate ---
     const evaluation = await runEvaluator(
@@ -60,7 +50,7 @@ async function generatorEvaluatorLoop(
       artifact.task,
       draft,
       inputSchemaDescription,
-      artifact.preCodeSummarize
+      artifact.preToolSummarize
     );
 
     const scoreResult: ScoreExtractionResult = extractOverallScore(evaluation);
@@ -68,11 +58,11 @@ async function generatorEvaluatorLoop(
     console.log(scoreResult);
     if (scoreResult.status === "Pass") {
       console.log("\n[INFO] Output accepted by evaluator.");
-      return draft;
+      return { content: draft, toolSummarization: toolSummarization };
     }
 
     // Feed the critique back into the next iteration via the artifact
-    currentOutput = `
+    evaluationStr = `
   --- Previous attempt (score ${scoreResult.score}) ---
   ${draft}
 
@@ -90,7 +80,7 @@ async function generatorEvaluatorLoop(
   console.warn(
     `\n[WARN]  Max iterations (${env.AGENT_MAX_ITERATIONS}) reached. Returning best attempt.`
   );
-  return currentOutput;
+  return { content: evaluationStr, toolSummarization: [] };
 }
 
 const harnessTask = { prompts: "user_prompt.md" };
@@ -132,12 +122,12 @@ export async function runHarness(
     task: comprehensionTask,
     completedSteps: [],
     remainingSteps: [...steps],
-    currentOutput: "",
-    preCodeSummarize: [],
+    preToolSummarize: [],
     iterationCount: 0,
   };
 
   // 3. Execute each step through the generator ↔ evaluator loop
+  let result: GeneratorEvaluatorLoopCompletion = { content: "" };
   for (const step of steps) {
     console.log(`\n${"─".repeat(60)}`);
     console.log(`STEP: ${step}`);
@@ -145,7 +135,7 @@ export async function runHarness(
 
     artifact.remainingSteps = artifact.remainingSteps.slice(1);
 
-    const result = await generatorEvaluatorLoop(
+    result = await generatorEvaluatorLoop(
       provider,
       artifact.task,
       {
@@ -156,34 +146,9 @@ export async function runHarness(
     );
 
     artifact.completedSteps.push(step);
-    artifact.currentOutput = result;
     artifact.iterationCount = 0;
-    const readmeMatch = step.match(/#README\.md#/);
-    if (readmeMatch) {
-      extractMarkdownAndSave(result);
-    } else {
-      const extractedCodeInfos: CodeUnifiedInfo[] =
-        await saveMarkdownCodeBlocksToFile(result);
-      // Context reset: only the structured artifact crosses session boundaries
-      for (const info of extractedCodeInfos) {
-        if (artifact.remainingSteps.length === 0) {
-          return;
-        }
-        const codeSummarize = await runSummarizer(
-          provider,
-          info.code,
-          info.path
-        );
-        const cleaned = extractMarkdownCodeBlocks(codeSummarize);
-        console.log(cleaned);
-
-        for (const block of cleaned) {
-          const parsed: CodeAnalysisResult = CodeAnalysisSchema.parse(
-            JSON.parse(block.content)
-          );
-          artifact.preCodeSummarize.push(parsed);
-        }
-      }
+    if (result.toolSummarization) {
+      artifact.preToolSummarize.push(...result.toolSummarization);
     }
   }
 
@@ -191,5 +156,5 @@ export async function runHarness(
   console.log("\n" + "═".repeat(60));
   console.log("  FINAL OUTPUT");
   console.log("═".repeat(60));
-  console.log(artifact.currentOutput);
+  console.log(result);
 }

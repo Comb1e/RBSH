@@ -9,19 +9,24 @@ import { env } from "../config/env.js";
 
 export async function runSummarizer(
   provider: LLMProvider,
-  code: string,
-  path: string
+  toolDescription: string,
+  args: string,
+  result: string
 ): Promise<string> {
   console.log("\n╔══════════════════════════════╗");
   console.log("║  Summarizer AGENT            ║");
   console.log("╚══════════════════════════════╝\n");
 
-  const unifiedPrompt = await getSummarizerPrompt(code, path);
+  const agentMessages = await getSummarizerPrompt(
+    toolDescription,
+    args,
+    result
+  );
 
   for (let iter = 1; iter <= env.AGENT_MAX_ITERATIONS; iter++) {
-    const messages = await provider.complete(unifiedPrompt);
-    if (messages.content != "") {
-      return messages.content;
+    const completion = await provider.complete(agentMessages, []);
+    if (completion.content != "") {
+      return completion.content;
     }
     console.log("[WARN] Summarizer returned empty content; retrying...");
   }

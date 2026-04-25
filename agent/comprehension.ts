@@ -16,12 +16,12 @@ export async function runComprehension(
   console.log("║  COMPREHENSION AGENT         ║");
   console.log("╚══════════════════════════════╝\n");
 
-  const unifiedPrompt = await getComprehensionPrompt(user_prompt, inputSchemas);
+  const agentMessages = await getComprehensionPrompt(user_prompt, inputSchemas);
 
   for (let iter = 1; iter <= env.AGENT_MAX_ITERATIONS; iter++) {
-    const messages = await provider.complete(unifiedPrompt);
-    if (messages.content != "") {
-      return messages.content;
+    const completion = await provider.complete(agentMessages, []);
+    if (completion.content != "") {
+      return completion.content;
     }
     console.log("[WARN] Evaluator returned empty content; retrying...");
   }

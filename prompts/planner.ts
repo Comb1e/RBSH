@@ -1,4 +1,4 @@
-import type { UnifiedAgentPrompt } from "@/types/index.js";
+import type { AgentMessage } from "@/types/index.js";
 import { readFilesFromRecord } from "@/utils/get_params.js";
 
 const plannerBase = {
@@ -8,7 +8,7 @@ const plannerBase = {
 export async function getPlannerPrompt(
   background: string,
   inputSchemaDescription: string
-): Promise<UnifiedAgentPrompt> {
+): Promise<AgentMessage[]> {
   const basicSkills = await readFilesFromRecord(plannerBase);
 
   const systemPrompt = `
@@ -25,8 +25,11 @@ export async function getPlannerPrompt(
 
     Input Schema: ${inputSchemaDescription}
     `.trim();
-  return {
-    system: systemPrompt,
-    user: userPrompt,
-  };
+  return [
+    {
+      role: "system",
+      content: systemPrompt,
+    },
+    { role: "user", content: userPrompt },
+  ];
 }

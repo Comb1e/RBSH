@@ -5,7 +5,7 @@
 // ---------------------------------------------------------------------------
 
 import type { LLMProvider } from "@/types/index.js";
-import type { CodeAnalysisResult } from "@/schemas/index.js";
+import type { ToolAnalysisResult } from "@/schemas/index.js";
 import { getEvaluatorPrompt } from "@/prompts/index.js";
 import { env } from "../config/env.js";
 
@@ -15,7 +15,7 @@ export async function runEvaluator(
   task: string,
   output: string,
   inputSchemaDescription: string,
-  preCodeSummarize: CodeAnalysisResult[]
+  preCodeSummarize: ToolAnalysisResult[]
 ): Promise<string> {
   console.log("\n╔══════════════════════════════╗");
   console.log("║  EVALUATOR AGENT             ║");
@@ -30,11 +30,13 @@ export async function runEvaluator(
     preCodeSummarize
   );
   for (let iter = 1; iter <= env.AGENT_MAX_ITERATIONS; iter++) {
-    const messages = await provider.complete(unifiedPrompt);
-    if (messages.content != "") {
-      return messages.content;
+    const completion = await provider.complete(unifiedPrompt, []);
+    const content = completion.content;
+    if (content == "") {
+      console.log("[WARN] Evaluator returned empty content; retrying...");
+      continue;
     }
-    console.log("[WARN] Evaluator returned empty content; retrying...");
+    return content;
   }
   return "ERROR";
 }

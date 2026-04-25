@@ -1,15 +1,15 @@
-import type { UnifiedAgentPrompt, HandoffArtifact } from "@/types/index.js";
+import type { HandoffArtifact, AgentMessage } from "@/types/index.js";
 import { readFilesFromRecord } from "@/utils/get_params.js";
 
 const generatorBase = {
   skills: "generator.md",
 };
 
-export async function getGeneratorPrompt(
+export async function createGeneratorBaseMessage(
   artifact: HandoffArtifact,
   background: string,
   inputSchemaDescription: string
-): Promise<UnifiedAgentPrompt> {
+): Promise<AgentMessage[]> {
   const basicSkills = await readFilesFromRecord(generatorBase);
   const systemPrompt = `
   === BASIC SKILLS ===
@@ -27,25 +27,49 @@ export async function getGeneratorPrompt(
     `.trim();
 
   const userPrompt = `
-  Task: ${artifact.task}
+  TASK
+  ────
+  ${artifact.task}
 
-  Completed steps:
+  ✅ COMPLETED STEPS (DO NOT re-implement these — already done)
+  ─────────────────────────────────────────────────────────────
+  These steps have been fully executed. Their outputs are captured
+  in "Code Summarization" and "Previous Output" below.
   ${
-    Object.entries(artifact.completedSteps)
-      .map(([key, value], i) => `  ${i + 1}. ${key}: ${value}`)
-      .join("\n") || "  (none yet)"
+    Object.entries(artifact.completedSteps).length > 0
+      ? Object.entries(artifact.completedSteps)
+          .map(
+            ([key, value], i) =>
+              `  [DONE] ${i + 1}. ${key}\n         Output: ${value}`
+          )
+          .join("\n")
+      : "  (none yet — this is the first iteration)"
   }
 
-  Code summarization for completed steps, you can directly use this to avoid writing code that has already been written:
-  ${artifact.preCodeSummarize}
+  ⏳ REMAINING STEPS (YOUR FOCUS — implement these next)
+  ──────────────────────────────────────────────────────
+  These steps are pending. Continue from where the previous
+  iteration left off. Do NOT repeat completed steps above.
+  ${
+    artifact.remainingSteps.length > 0
+      ? artifact.remainingSteps
+          .map((s, i) => `  [TODO] ${i + 1}. ${s}`)
+          .join("\n")
+      : "  (none — all steps are complete)"
+  }
 
-  Previous output to build on:
-  ${artifact.currentOutput || "(no prior output)"}
+  ───────────────────────────────────────────────────────
+  REUSABLE CODE FROM COMPLETED STEPS
+  (Use this directly — do not rewrite what already exists)
+  ───────────────────────────────────────────────────────
+  ${artifact.preCodeSummarize || "(no prior code — first iteration)"}
 
-  Key information from previous code writing:
-    `.trim();
-  return {
-    system: systemPrompt,
-    user: userPrompt,
-  };
+  ───────────────────────────────────────────────────────
+  KEY INFORMATION FROM PREVIOUS CODE WRITING
+  ───────────────────────────────────────────────────────
+  `.trim();
+  return [
+    { role: "system", content: systemPrompt },
+    { role: "user", content: userPrompt },
+  ];
 }

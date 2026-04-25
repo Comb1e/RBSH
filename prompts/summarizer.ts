@@ -1,4 +1,4 @@
-import type { UnifiedAgentPrompt } from "@/types/index.js";
+import type { AgentMessage } from "@/types/index.js";
 import { readFilesFromRecord } from "@/utils/get_params.js";
 
 const summarizerBase = {
@@ -6,27 +6,41 @@ const summarizerBase = {
 };
 
 export async function getSummarizerPrompt(
-  code: string,
-  path: string
-): Promise<UnifiedAgentPrompt> {
+  toolDescription: string,
+  args: string,
+  result: string
+): Promise<AgentMessage[]> {
   const basicSkills = await readFilesFromRecord(summarizerBase);
   const systemPrompt = `
-You are a senior software engineer and code analysis expert.
-Your task is to analyze a multi-file codebase and extract structured, machine-readable information for each file independently.
+You are a concise tool-use summarizer. Your sole task is to
+produce a short, human-readable summary of a single agent
+tool invocation.
 
 === BASIC SKILLS ===
 ${basicSkills.join("\n\n")}
     `.trim();
 
   const userPrompt = `
-Input code:
-${code}
-Relative file path:
-${path}
-    `.trim();
+Summarize the following tool invocation.
 
-  return {
-    system: systemPrompt,
-    user: userPrompt,
-  };
+Tool description:
+${toolDescription}
+
+Arguments passed:
+${JSON.stringify(args, null, 2)}
+
+Result returned:
+${JSON.stringify(result, null, 2)}
+`.trim();
+
+  return [
+    {
+      role: "system",
+      content: systemPrompt,
+    },
+    {
+      role: "user",
+      content: userPrompt,
+    },
+  ];
 }
