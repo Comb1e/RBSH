@@ -9,6 +9,7 @@ import type {
   HandoffArtifact,
   LLMProvider,
   GeneratorCompletionResult,
+  UnifiedToolResult,
 } from "@/types/index.js";
 import { runSummarizer } from "./summarizer.js";
 import { createGeneratorBaseMessage } from "../prompts/generator.js";
@@ -40,6 +41,8 @@ export async function runGenerator(
     inputSchemaDescription
   );
   let summarizeResults: ToolAnalysisResult[] = [];
+  let allExecution: UnifiedToolResult[] = [];
+  let evaluatorUseStr: string[] = [];
   for (let iter = 1; iter <= env.AGENT_MAX_ITERATIONS; iter++) {
     const completion = await provider.complete(agentMessages, generatorTools);
     agentMessages = completion.messages;
@@ -50,9 +53,7 @@ export async function runGenerator(
       console.log("[WARN] Generator returned empty content; retrying...");
       continue;
     }
-
-    if (toolCalls) {
-      console.log(toolCalls);
+    if (toolCalls != undefined && toolCalls.length > 0) {
       console.log(
         "\n[INFO] Generator made tool call(s):",
         toolCalls.map((t) => t.name).join(", ")
@@ -68,24 +69,20 @@ export async function runGenerator(
         content: serializeResult(executed.result),
       }));
       agentMessages.push(...toolMessages);
+      allExecution.push(...executionResults);
+
       executionResults.forEach(async (res) => {
         console.log(
           `[TOOL ${res.status.toUpperCase()}] ${res.name}:`,
           res.status === "success" ? "OK" : res.result
         );
         if (res.status == "success") {
-          const summarize = await runSummarizer(
-            provider,
-            res.toolDescription,
-            res.argStr,
-            serializeResult(res.result)
-          );
-          const cleaned = extractMarkdownCodeBlocks(summarize);
-          for (const block of cleaned) {
-            summarizeResults.push(
-              ToolAnalysisResultSchema.parse(JSON.parse(block.content))
-            );
-          }
+          const toolUseStr: string = `
+          --- Tool Used: ${res.name} ---
+          Input: ${res.argStr}
+          Output: ${serializeResult(res.result)}
+          `.trim();
+          evaluatorUseStr.push(toolUseStr);
         }
       });
     }
@@ -94,8 +91,22 @@ export async function runGenerator(
       completion.content
     );
     if (ifComplete) {
+      const cleaned = extractMarkdownCodeBlocks(ifComplete);
+      if (cleaned.length === 0) {
+        console.log("\n[INFO] Generator task completed without tool calls.");
+        return { content: JSON.stringify(evaluatorUseStr) }; // should be ifComplete
+      }
+
       console.log("\n[INFO] Generator task completed.");
-      return { content: ifComplete, toolSummarization: summarizeResults };
+      for (const block of cleaned) {
+        summarizeResults.push(
+          ToolAnalysisResultSchema.parse(JSON.parse(block.content))
+        );
+      }
+      return {
+        content: JSON.stringify(evaluatorUseStr),
+        toolSummarization: summarizeResults,
+      };
     }
   }
   return { content: "[ERROR] Task do not complete in max_iteration." };

@@ -1,9 +1,9 @@
-import type { UnifiedAgentPrompt } from "@/types/index.js";
-import type { CodeAnalysisResult } from "@/schemas/index.js";
+import type { AgentMessage } from "@/types/index.js";
+import type { ToolAnalysisResult } from "@/schemas/index.js";
 import { readFilesFromRecord } from "@/utils/get_params.js";
 
 const evaluatorBase = {
-  skills: "evaluator.md",
+  skills: ["evaluator.md"],
 };
 
 export async function getEvaluatorPrompt(
@@ -11,10 +11,12 @@ export async function getEvaluatorPrompt(
   background: string,
   output: string,
   inputSchemaDescription: string,
-  preCodeSummarize: CodeAnalysisResult[]
-): Promise<UnifiedAgentPrompt> {
+  preCodeSummarize: ToolAnalysisResult[]
+): Promise<AgentMessage[]> {
   const basicSkills = await readFilesFromRecord(evaluatorBase);
   const systemPrompt = `
+  Do not use tools. Only evaluate.
+
   === BASIC SKILLS ===
   ${basicSkills.join("\n\n")}
 
@@ -37,9 +39,12 @@ export async function getEvaluatorPrompt(
     Code summarization for completed steps:
     ${preCodeSummarize}
     `.trim();
-
-  return {
-    system: systemPrompt,
-    user: userPrompt,
-  };
+  console.log(userPrompt);
+  return [
+    {
+      role: "system",
+      content: systemPrompt,
+    },
+    { role: "user", content: userPrompt },
+  ];
 }

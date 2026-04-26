@@ -2,7 +2,7 @@ import type { AgentMessage } from "@/types/index.js";
 import { readFilesFromRecord } from "@/utils/get_params.js";
 
 const plannerBase = {
-  skills: "planner.md",
+  skills: ["planner.md"],
 };
 
 export async function getPlannerPrompt(

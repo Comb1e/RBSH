@@ -276,10 +276,10 @@ export async function extractMarkdownAndSave(text: string): Promise<string[]> {
  */
 export function extractTaskCompleteContent(input: string): string | null {
   // Regex explanation:
-  // ```task-complete\n : Matches the opening fence specifically for task-complete
+  // ````TASK_COMPLETE\n : Matches the opening fence specifically for task-complete
   // ([\s\S]*?)       : Captures any character (including newlines) non-greedily
-  // \n```            : Matches the closing fence
-  const regex = /```task-complete\n([\s\S]*?)\n```/;
+  // \n````            : Matches the closing fence
+  const regex = /````TASK_COMPLETE\n([\s\S]*?)\n````/;
 
   const match = input.match(regex);
 

@@ -18,13 +18,17 @@ export async function getFile(targetPath: string): Promise<string> {
 }
 
 export async function readFilesFromRecord(
-  fileMap: Record<string, string>
+  fileMap: Record<string, string[]>
 ): Promise<string[]> {
   const entries = Object.entries(fileMap);
-  const promises = entries.map(async ([key, value]) => {
-    const filePath = path.join(__dirname, key, value);
-    return getFile(filePath);
+  // Create a flat array of promises for all files
+  const promises = entries.flatMap(([key, values]) => {
+    return values.map((value) => {
+      const filePath = path.join(__dirname, key, value);
+      return getFile(filePath);
+    });
   });
+
   const contents = await Promise.all(promises);
   return contents;
 }

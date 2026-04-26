@@ -2,7 +2,7 @@ import type { AgentMessage } from "@/types/index.js";
 import { readFilesFromRecord } from "@/utils/get_params.js";
 
 const summarizerBase = {
-  skills: "summarizer.md",
+  skills: ["summarizer.md"],
 };
 
 export async function getSummarizerPrompt(
@@ -15,6 +15,8 @@ export async function getSummarizerPrompt(
 You are a concise tool-use summarizer. Your sole task is to
 produce a short, human-readable summary of a single agent
 tool invocation.
+
+Do not use tools. Only summarize.
 
 === BASIC SKILLS ===
 ${basicSkills.join("\n\n")}

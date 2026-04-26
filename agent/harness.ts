@@ -83,7 +83,7 @@ async function generatorEvaluatorLoop(
   return { content: evaluationStr, toolSummarization: [] };
 }
 
-const harnessTask = { prompts: "user_prompt.md" };
+const harnessTask = { prompts: ["user_prompt.md"] };
 
 export async function runHarness(
   provider: LLMProvider,

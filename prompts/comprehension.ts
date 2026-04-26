@@ -2,7 +2,7 @@ import type { AgentMessage } from "@/types/index.js";
 import { readFilesFromRecord } from "@/utils/get_params.js";
 
 const comprehensionBase = {
-  skills: "comprehension.md",
+  skills: ["comprehension.md"],
 };
 
 export async function getComprehensionPrompt(

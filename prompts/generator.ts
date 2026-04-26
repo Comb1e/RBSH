@@ -2,7 +2,7 @@ import type { HandoffArtifact, AgentMessage } from "@/types/index.js";
 import { readFilesFromRecord } from "@/utils/get_params.js";
 
 const generatorBase = {
-  skills: "generator.md",
+  skills: ["generator.md"],
 };
 
 export async function createGeneratorBaseMessage(
@@ -17,6 +17,7 @@ export async function createGeneratorBaseMessage(
 
   === INSTRUCTIONS ===
   You will get scores for your task from 0-4, 4 is perfect.
+  Notice the output format!!!
 
   === BACKGROUND ===
   ${background}
@@ -59,10 +60,10 @@ export async function createGeneratorBaseMessage(
   }
 
   ───────────────────────────────────────────────────────
-  REUSABLE CODE FROM COMPLETED STEPS
+  SUMMARIZATION OF COMPLETED STEPS
   (Use this directly — do not rewrite what already exists)
   ───────────────────────────────────────────────────────
-  ${artifact.preCodeSummarize || "(no prior code — first iteration)"}
+  ${artifact.preToolSummarize || "(no prior code — first iteration)"}
 
   ───────────────────────────────────────────────────────
   KEY INFORMATION FROM PREVIOUS CODE WRITING

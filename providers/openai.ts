@@ -49,7 +49,8 @@ export class OpenAIProvider implements LLMProvider {
                 | OpenAI.Chat.Completions.ChatCompletionSystemMessageParam;
             })
           : [];
-      const stream = await this.client.chat.completions.create({
+      let stream;
+      stream = await this.client.chat.completions.create({
         model: env.OPENAI_MODEL,
         messages: openaiMessages,
         temperature: env.AGENT_TEMPERATURE,
@@ -89,11 +90,18 @@ export class OpenAIProvider implements LLMProvider {
         }
       }
       const openaiToollCalls = convertToOpenAIToolCalls(unifiedToolCalls);
-      agentMessages.push({
-        role: "assistant",
-        content: currentMessage,
-        tool_calls: openaiToollCalls,
-      });
+      if (openaiToollCalls.length > 0) {
+        agentMessages.push({
+          role: "assistant",
+          tool_calls: openaiToollCalls,
+        });
+      } else {
+        agentMessages.push({
+          role: "assistant",
+          content: currentMessage,
+          tool_calls: openaiToollCalls,
+        });
+      }
       const toolCallsArray: UnifiedToolCall[] = Object.values(unifiedToolCalls);
       return {
         content: currentMessage,

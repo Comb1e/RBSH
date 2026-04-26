@@ -46,7 +46,7 @@ export interface LLMProvider {
 
 export interface AgentMessage {
   role: "system" | "user" | "assistant" | "tool";
-  content: string;
+  content?: string;
   tool_calls?: ChatCompletionMessageToolCall[];
   tool_call_id?: string;
   name?: string;
