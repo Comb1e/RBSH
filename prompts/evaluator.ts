@@ -29,17 +29,23 @@ export async function getEvaluatorPrompt(
   `.trim();
 
   const userPrompt = `
-    Task: ${task}
+  ## Task Description
+  The following task was assigned to another agent:
+  ${task}
 
-    Output to grade:
-    \`\`\`
-    ${output}
-    \`\`\`
+  ## Tool Use to Evaluate
+  The agent produced the following tool call or output:
+  \`\`\`
+  ${output}
+  \`\`\`
 
-    Code summarization for completed steps:
-    ${preCodeSummarize}
-    `.trim();
-  console.log(userPrompt);
+  ## Prior Context (Completed Steps)
+  ${
+    preCodeSummarize.length > 0
+      ? `The following is a summary of code or content produced in earlier steps:\n${preCodeSummarize}`
+      : "No prior steps were completed before this tool use."
+  }
+  `.trim();
   return [
     {
       role: "system",

@@ -19,7 +19,7 @@ export async function runComprehension(
   const agentMessages = await getComprehensionPrompt(user_prompt, inputSchemas);
 
   for (let iter = 1; iter <= env.AGENT_MAX_ITERATIONS; iter++) {
-    const completion = await provider.complete(agentMessages, []);
+    const completion = await provider.complete(agentMessages, {});
     if (completion.content != "") {
       return completion.content;
     }

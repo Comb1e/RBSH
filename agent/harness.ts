@@ -38,7 +38,8 @@ async function generatorEvaluatorLoop(
       provider,
       artifact,
       background,
-      inputSchemaDescription
+      inputSchemaDescription,
+      evaluationStr
     );
     const draft = generatorCompletion.content;
     const toolSummarization = generatorCompletion.toolSummarization;

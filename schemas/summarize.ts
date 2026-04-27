@@ -1,3 +1,4 @@
+import { parse } from "path";
 import { z } from "zod";
 
 const ParameterSchema = z.object({
@@ -7,8 +8,18 @@ const ParameterSchema = z.object({
 });
 
 // Schema for Primitive / Simple Type
-const PrimitiveReturnSchema = z.object({
-  type: z.literal("bool"), // You might want to extend this to 'string' | 'number' | 'bool' etc.
+const PrimitiveBoolReturnSchema = z.object({
+  type: z.literal("bool"),
+  description: z.string(),
+});
+
+const PrimitiveNumberReturnSchema = z.object({
+  type: z.literal("number"),
+  description: z.string(),
+});
+
+const PrimitiveStringReturnSchema = z.object({
+  type: z.literal("string"),
   description: z.string(),
 });
 
@@ -54,7 +65,9 @@ const TupleReturnSchema = z.object({
 
 // Combine them using discriminatedUnion on the 'type' field
 export const ReturnsSchema = z.discriminatedUnion("type", [
-  PrimitiveReturnSchema,
+  PrimitiveBoolReturnSchema,
+  PrimitiveNumberReturnSchema,
+  PrimitiveStringReturnSchema,
   DictReturnSchema,
   ListReturnSchema,
   TupleReturnSchema,
@@ -104,7 +117,7 @@ const TextSummarySchema = z.object({
 });
 
 export const ToolAnalysisResultSchema = z.object({
-  tools: z.string(),
+  tool: z.string(),
   purpose: z.string(),
   request: z.string(),
   result: z.string().optional(),
@@ -113,3 +126,26 @@ export const ToolAnalysisResultSchema = z.object({
 });
 
 export type ToolAnalysisResult = z.infer<typeof ToolAnalysisResultSchema>;
+
+export function parseMultipleToolResults(input: string): ToolAnalysisResult[] {
+  const results: ToolAnalysisResult[] = [];
+
+  const parsedArray = JSON.parse(input);
+  if (Array.isArray(parsedArray)) {
+    for (const item of parsedArray) {
+      const validItem = ToolAnalysisResultSchema.safeParse(item);
+      if (validItem.success) {
+        results.push(validItem.data);
+      } else {
+        console.warn("Failed to validate array item:", validItem.error);
+      }
+    }
+    return results;
+  }
+  const item = ToolAnalysisResultSchema.safeParse(parsedArray);
+  console.log("\n", item);
+  if (item.success) {
+    results.push(item.data);
+  }
+  return results;
+}

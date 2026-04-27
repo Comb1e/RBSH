@@ -1,3 +1,3 @@
-export * from "./summarizer.js";
+export * from "./summarize.js";
 export * from "./comprehension.js";
-export * from "./tools.js";
+export * from "./tools/index.js";

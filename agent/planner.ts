@@ -24,7 +24,7 @@ export async function runPlanner(
   // Planner needs no file-system tools — disable them all for minimum footprint
   let raw = "";
   for (let iter = 1; iter <= env.AGENT_MAX_ITERATIONS; iter++) {
-    const completion = await provider.complete(unifiedPrompt, []);
+    const completion = await provider.complete(unifiedPrompt, {});
     if (completion.content != "") {
       raw = completion.content;
       break;

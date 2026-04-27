@@ -8,7 +8,8 @@ const generatorBase = {
 export async function createGeneratorBaseMessage(
   artifact: HandoffArtifact,
   background: string,
-  inputSchemaDescription: string
+  inputSchemaDescription: string,
+  evaluationStr: string
 ): Promise<AgentMessage[]> {
   const basicSkills = await readFilesFromRecord(generatorBase);
   const systemPrompt = `
@@ -63,11 +64,15 @@ export async function createGeneratorBaseMessage(
   SUMMARIZATION OF COMPLETED STEPS
   (Use this directly — do not rewrite what already exists)
   ───────────────────────────────────────────────────────
-  ${artifact.preToolSummarize || "(no prior code — first iteration)"}
+  ${
+    JSON.stringify(artifact.preToolSummarize) ||
+    "(no prior code — first iteration)"
+  }
 
   ───────────────────────────────────────────────────────
   KEY INFORMATION FROM PREVIOUS CODE WRITING
   ───────────────────────────────────────────────────────
+  ${evaluationStr || "(none)"}
   `.trim();
   return [
     { role: "system", content: systemPrompt },

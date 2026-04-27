@@ -8,6 +8,7 @@ import type { LLMProvider } from "@/types/index.js";
 import type { ToolAnalysisResult } from "@/schemas/index.js";
 import { getEvaluatorPrompt } from "@/prompts/index.js";
 import { env } from "../config/env.js";
+import { evaluatorToolRegistry } from "@/tools/index.js";
 
 export async function runEvaluator(
   provider: LLMProvider,
@@ -30,7 +31,10 @@ export async function runEvaluator(
     preCodeSummarize
   );
   for (let iter = 1; iter <= env.AGENT_MAX_ITERATIONS; iter++) {
-    const completion = await provider.complete(unifiedPrompt, []);
+    const completion = await provider.complete(
+      unifiedPrompt,
+      evaluatorToolRegistry
+    );
     const content = completion.content;
     if (content == "") {
       console.log("[WARN] Evaluator returned empty content; retrying...");

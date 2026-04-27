@@ -1,7 +1,6 @@
 import { ToolAnalysisResult } from "@/schemas/index.js";
 import type { ChatCompletionMessageToolCall } from "openai/resources/chat/completions";
-import { OpenAI } from "openai/client.js";
-
+import type { ToolDefinition } from "./tools.js";
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -40,7 +39,7 @@ export interface UnifiedAgentOptions {
 export interface LLMProvider {
   complete(
     message: AgentMessage[],
-    tools: OpenAI.Chat.ChatCompletionTool[]
+    toolsRegistry: Record<string, ToolDefinition>
   ): Promise<LLMCompletionResult>; // Call LLM
 }
 

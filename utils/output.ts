@@ -279,7 +279,7 @@ export function extractTaskCompleteContent(input: string): string | null {
   // ````TASK_COMPLETE\n : Matches the opening fence specifically for task-complete
   // ([\s\S]*?)       : Captures any character (including newlines) non-greedily
   // \n````            : Matches the closing fence
-  const regex = /````TASK_COMPLETE\n([\s\S]*?)\n````/;
+  const regex = /```TASK_COMPLETE\n([\s\S]*?)\n```/;
 
   const match = input.match(regex);
 

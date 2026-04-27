@@ -1,7 +1,7 @@
 import { mkdir, writeFile } from "fs/promises";
 import { dirname, resolve } from "path";
-import { CreateFileOptions } from "@/types/index.js";
-
+import { CreateFileOptions, ToolDefinition } from "@/types/index.js";
+import { createFileWithDirectoriesSchema } from "@/schemas/index.js";
 /**
  * Creates a file at the specified path, automatically creating any missing parent directories.
  *
@@ -52,3 +52,21 @@ export async function createFileWithDirectories(
     throw new Error(`Failed to write file '${absolutePath}': ${error.message}`);
   }
 }
+
+export const createFileWithDirectoriesTool: ToolDefinition = {
+  name: "createFileWithDirectories",
+  description:
+    "Creates a file at the specified path, automatically creating any missing parent directories.",
+  schema: createFileWithDirectoriesSchema,
+  execute: async (args) => {
+    const finalContent = args.content.startsWith("base64:")
+      ? Buffer.from(args.content.split(":")[1], "base64")
+      : args.content;
+
+    return await createFileWithDirectories(
+      args.filePath,
+      finalContent as any,
+      args.options
+    );
+  },
+};

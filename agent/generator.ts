@@ -11,21 +11,19 @@ import type {
   GeneratorCompletionResult,
   UnifiedToolResult,
 } from "@/types/index.js";
-import { runSummarizer } from "./summarizer.js";
 import { createGeneratorBaseMessage } from "../prompts/generator.js";
 import { env } from "../config/env.js";
-import { generatorTools } from "@/tools/generator.js";
 import { generatorToolRegistry, handleToolExecution } from "@/tools/index.js";
 import { extractTaskCompleteContent, serializeResult } from "@/utils/output.js";
-import { extractMarkdownCodeBlocks } from "@/utils/output.js";
+import { parseMultipleToolResults } from "@/schemas/index.js";
 import type { ToolAnalysisResult } from "@/schemas/index.js";
-import { ToolAnalysisResultSchema } from "@/schemas/index.js";
 
 export async function runGenerator(
   provider: LLMProvider,
   artifact: HandoffArtifact,
   background: string,
-  inputSchemaDescription: string
+  inputSchemaDescription: string,
+  evaluationStr: string
 ): Promise<GeneratorCompletionResult> {
   console.log("\n╔══════════════════════════════╗");
   console.log(
@@ -38,13 +36,18 @@ export async function runGenerator(
   let agentMessages = await createGeneratorBaseMessage(
     artifact,
     background,
-    inputSchemaDescription
+    inputSchemaDescription,
+    evaluationStr
   );
   let summarizeResults: ToolAnalysisResult[] = [];
   let allExecution: UnifiedToolResult[] = [];
   let evaluatorUseStr: string[] = [];
   for (let iter = 1; iter <= env.AGENT_MAX_ITERATIONS; iter++) {
-    const completion = await provider.complete(agentMessages, generatorTools);
+    console.log(agentMessages);
+    const completion = await provider.complete(
+      agentMessages,
+      generatorToolRegistry
+    );
     agentMessages = completion.messages;
     const content = completion.content;
     const toolCalls = completion?.toolCalls;
@@ -71,12 +74,12 @@ export async function runGenerator(
       agentMessages.push(...toolMessages);
       allExecution.push(...executionResults);
 
-      executionResults.forEach(async (res) => {
+      executionResults.forEach((res) => {
         console.log(
           `[TOOL ${res.status.toUpperCase()}] ${res.name}:`,
           res.status === "success" ? "OK" : res.result
         );
-        if (res.status == "success") {
+        if (res.status === "success") {
           const toolUseStr: string = `
           --- Tool Used: ${res.name} ---
           Input: ${res.argStr}
@@ -91,18 +94,13 @@ export async function runGenerator(
       completion.content
     );
     if (ifComplete) {
-      const cleaned = extractMarkdownCodeBlocks(ifComplete);
+      const cleaned = parseMultipleToolResults(ifComplete);
       if (cleaned.length === 0) {
         console.log("\n[INFO] Generator task completed without tool calls.");
-        return { content: JSON.stringify(evaluatorUseStr) }; // should be ifComplete
+        return { content: JSON.stringify(ifComplete) }; // should be ifComplete
       }
-
       console.log("\n[INFO] Generator task completed.");
-      for (const block of cleaned) {
-        summarizeResults.push(
-          ToolAnalysisResultSchema.parse(JSON.parse(block.content))
-        );
-      }
+      summarizeResults.push(...cleaned);
       return {
         content: JSON.stringify(evaluatorUseStr),
         toolSummarization: summarizeResults,

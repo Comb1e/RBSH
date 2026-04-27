@@ -5,8 +5,10 @@ import {
   LLMCompletionResult,
   UnifiedToolCall,
   AgentMessage,
+  ToolDefinition,
 } from "@/types/index.js";
 import { env } from "../config/env.js";
+import { generateToolsFromRegistry } from "@/tools/index.js";
 
 export class OpenAIProvider implements LLMProvider {
   private client: OpenAI;
@@ -19,7 +21,7 @@ export class OpenAIProvider implements LLMProvider {
 
   async complete(
     agentMessages: AgentMessage[],
-    tools: OpenAI.Chat.ChatCompletionTool[]
+    toolsRegistry: Record<string, ToolDefinition>
   ): Promise<LLMCompletionResult> {
     try {
       const openaiMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] =
@@ -49,13 +51,14 @@ export class OpenAIProvider implements LLMProvider {
                 | OpenAI.Chat.Completions.ChatCompletionSystemMessageParam;
             })
           : [];
+      const openaiTools = generateToolsFromRegistry(toolsRegistry);
       let stream;
       stream = await this.client.chat.completions.create({
         model: env.OPENAI_MODEL,
         messages: openaiMessages,
         temperature: env.AGENT_TEMPERATURE,
         stream: true,
-        tools: tools,
+        tools: openaiTools,
       });
       let unifiedToolCalls: Record<number, UnifiedToolCall> = {};
       let currentMessage: string = "";
@@ -99,7 +102,6 @@ export class OpenAIProvider implements LLMProvider {
         agentMessages.push({
           role: "assistant",
           content: currentMessage,
-          tool_calls: openaiToollCalls,
         });
       }
       const toolCallsArray: UnifiedToolCall[] = Object.values(unifiedToolCalls);
