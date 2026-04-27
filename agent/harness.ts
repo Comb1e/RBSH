@@ -54,7 +54,9 @@ async function generatorEvaluatorLoop(
       artifact.preToolSummarize
     );
 
-    const scoreResult: ScoreExtractionResult = extractOverallScore(evaluation);
+    const scoreResult: ScoreExtractionResult = extractOverallScore(
+      evaluation.content
+    );
     console.log("\n");
     console.log(scoreResult);
     if (scoreResult.status === "Pass") {
@@ -81,7 +83,7 @@ async function generatorEvaluatorLoop(
   console.warn(
     `\n[WARN]  Max iterations (${env.AGENT_MAX_ITERATIONS}) reached. Returning best attempt.`
   );
-  return { content: evaluationStr, toolSummarization: [] };
+  return { content: evaluationStr, toolSummarization: "" };
 }
 
 const harnessTask = { prompts: ["user_prompt.md"] };

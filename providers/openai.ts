@@ -29,26 +29,41 @@ export class OpenAIProvider implements LLMProvider {
           ? agentMessages.map((msg) => {
               const base = {
                 role: msg.role as any,
-                content: msg.content,
               };
 
-              if (msg.role === "assistant" && (msg as any).tool_calls) {
-                return {
-                  ...base,
-                  tool_calls: (msg as any).tool_calls,
-                } as OpenAI.Chat.Completions.ChatCompletionAssistantMessageParam;
+              if (msg.role === "assistant") {
+                if ((msg as any).tool_calls) {
+                  return {
+                    ...base,
+                    tool_calls: (msg as any).tool_calls,
+                  } as OpenAI.Chat.Completions.ChatCompletionAssistantMessageParam;
+                } else {
+                  return {
+                    ...base,
+                    content: msg.content,
+                  } as OpenAI.Chat.Completions.ChatCompletionAssistantMessageParam;
+                }
               }
 
               if (msg.role === "tool" && msg.tool_call_id) {
                 return {
                   ...base,
+                  content: msg.content,
                   tool_call_id: msg.tool_call_id,
                 } as OpenAI.Chat.Completions.ChatCompletionToolMessageParam;
               }
 
-              return base as
-                | OpenAI.Chat.Completions.ChatCompletionUserMessageParam
-                | OpenAI.Chat.Completions.ChatCompletionSystemMessageParam;
+              if (msg.role === "system") {
+                return {
+                  ...base,
+                  content: msg.content,
+                } as OpenAI.Chat.Completions.ChatCompletionSystemMessageParam;
+              }
+
+              return {
+                ...base,
+                content: msg.content,
+              } as OpenAI.Chat.Completions.ChatCompletionUserMessageParam;
             })
           : [];
       const openaiTools = generateToolsFromRegistry(toolsRegistry);

@@ -14,7 +14,6 @@ export function generateToolsFromRegistry(
       target: "jsonSchema7",
       $refStrategy: "none",
     });
-
     return {
       type: "function",
       function: {

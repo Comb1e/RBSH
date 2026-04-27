@@ -53,7 +53,9 @@ export async function createFileWithDirectories(
   }
 }
 
-export const createFileWithDirectoriesTool: ToolDefinition = {
+export const createFileWithDirectoriesTool: ToolDefinition<
+  typeof createFileWithDirectoriesSchema
+> = {
   name: "createFileWithDirectories",
   description:
     "Creates a file at the specified path, automatically creating any missing parent directories.",
@@ -63,10 +65,18 @@ export const createFileWithDirectoriesTool: ToolDefinition = {
       ? Buffer.from(args.content.split(":")[1], "base64")
       : args.content;
 
-    return await createFileWithDirectories(
-      args.filePath,
-      finalContent as any,
-      args.options
-    );
+    const defaultEncoding: BufferEncoding = "utf8";
+    const encoding = args?.options?.encoding
+      ? args.options.encoding
+      : defaultEncoding;
+    const mode = args?.options?.mode ? args.options.mode : 0o644;
+    const overwirte = args?.options?.overwrite ? args.options.overwrite : true;
+    if (args != undefined) {
+      return await createFileWithDirectories(
+        args.filePath,
+        finalContent as any,
+        { encoding: encoding, mode: mode, overwrite: overwirte }
+      );
+    }
   },
 };

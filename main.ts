@@ -5,7 +5,6 @@ import { dataPreprocess, readFilesFromList } from "@/utils/index.js";
 // ---------------------------------------------------------------------------
 // Entry point
 // ---------------------------------------------------------------------------
-
 const INPUT_RAW_DIR = "./input_raw";
 const OUTPUT_SCHEMAS_DIR = "./output_schemas";
 
@@ -24,5 +23,3 @@ async function main() {
 
 main();
 //npx tsx main.ts
-
-//todo: 精简comprehension

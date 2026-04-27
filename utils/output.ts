@@ -290,6 +290,18 @@ export function extractTaskCompleteContent(input: string): string | null {
   return null;
 }
 
+export function extractSummarizationContent(input: string): string | null {
+  const regex = /```SUMMARIZATION\n([\s\S]*?)\n```/;
+
+  const match = input.match(regex);
+
+  if (match && match[1] !== undefined) {
+    return match[1];
+  }
+
+  return null;
+}
+
 export function serializeResult(result: unknown): string {
   if (result === null) return "null";
   if (result === undefined) return "undefined";

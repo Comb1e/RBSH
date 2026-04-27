@@ -11,12 +11,10 @@ export async function getEvaluatorPrompt(
   background: string,
   output: string,
   inputSchemaDescription: string,
-  preCodeSummarize: ToolAnalysisResult[]
+  preCodeSummarize: string[] //ToolAnalysisResult[]
 ): Promise<AgentMessage[]> {
   const basicSkills = await readFilesFromRecord(evaluatorBase);
   const systemPrompt = `
-  Do not use tools. Only evaluate.
-
   === BASIC SKILLS ===
   ${basicSkills.join("\n\n")}
 
@@ -33,8 +31,8 @@ export async function getEvaluatorPrompt(
   The following task was assigned to another agent:
   ${task}
 
-  ## Tool Use to Evaluate
-  The agent produced the following tool call or output:
+  ## Output to Evaluate
+  The agent produced the following output:
   \`\`\`
   ${output}
   \`\`\`

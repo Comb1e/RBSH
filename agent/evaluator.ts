@@ -4,11 +4,11 @@
 // Keeping the evaluator separate prevents the "self-praise" failure mode.
 // ---------------------------------------------------------------------------
 
-import type { LLMProvider } from "@/types/index.js";
+import type { LLMProvider, AgentCompletionResult } from "@/types/index.js";
 import type { ToolAnalysisResult } from "@/schemas/index.js";
 import { getEvaluatorPrompt } from "@/prompts/index.js";
-import { env } from "../config/env.js";
 import { evaluatorToolRegistry } from "@/tools/index.js";
+import { runAgent } from "./agent.js";
 
 export async function runEvaluator(
   provider: LLMProvider,
@@ -16,31 +16,25 @@ export async function runEvaluator(
   task: string,
   output: string,
   inputSchemaDescription: string,
-  preCodeSummarize: ToolAnalysisResult[]
-): Promise<string> {
+  preCodeSummarize: string[] //ToolAnalysisResult[]
+): Promise<AgentCompletionResult> {
   console.log("\n╔══════════════════════════════╗");
   console.log("║  EVALUATOR AGENT             ║");
   console.log("╚══════════════════════════════╝\n");
 
   // Evaluator needs no tools — pure LLM reasoning
-  const unifiedPrompt = await getEvaluatorPrompt(
+  const agentMessages = await getEvaluatorPrompt(
     task,
     background,
     output,
     inputSchemaDescription,
     preCodeSummarize
   );
-  for (let iter = 1; iter <= env.AGENT_MAX_ITERATIONS; iter++) {
-    const completion = await provider.complete(
-      unifiedPrompt,
-      evaluatorToolRegistry
-    );
-    const content = completion.content;
-    if (content == "") {
-      console.log("[WARN] Evaluator returned empty content; retrying...");
-      continue;
-    }
-    return content;
-  }
-  return "ERROR";
+  const result = await runAgent(
+    provider,
+    agentMessages,
+    evaluatorToolRegistry,
+    "Evaluator"
+  );
+  return result;
 }

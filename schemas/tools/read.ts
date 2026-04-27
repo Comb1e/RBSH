@@ -18,7 +18,7 @@ export type ReadFileArgs = z.infer<typeof ReadFileArgsSchema>;
 export const ReadFileResultSchema = z.discriminatedUnion("success", [
   // ✅ Success: File Content
   z.object({
-    success: z.literal(true),
+    success: z.literal("read_file_success"),
     type: z.literal("file"),
     path: z.string(),
     startLine: z.number().int().positive(),
@@ -30,7 +30,7 @@ export const ReadFileResultSchema = z.discriminatedUnion("success", [
   }),
   // ✅ Success: Directory Listing
   z.object({
-    success: z.literal(true),
+    success: z.literal("list_dir_success"),
     type: z.literal("directory"),
     path: z.string(),
     entries: z.array(

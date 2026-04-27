@@ -11,7 +11,7 @@ export interface HandoffArtifact {
   completedSteps: string[];
   remainingSteps: string[];
   iterationCount: number;
-  preToolSummarize: ToolAnalysisResult[];
+  preToolSummarize: string[]; //ToolAnalysisResult[]
 }
 
 export interface ScoreExtractionResult {
@@ -63,9 +63,9 @@ export interface LLMCompletionResult {
   toolCalls?: UnifiedToolCall[];
 }
 
-export interface GeneratorCompletionResult {
+export interface AgentCompletionResult {
   content: string;
-  toolSummarization?: ToolAnalysisResult[];
+  toolSummarization?: string; //ToolAnalysisResult[]
 }
 
 export interface SkillMetadata {
@@ -76,5 +76,5 @@ export interface SkillMetadata {
 
 export interface GeneratorEvaluatorLoopCompletion {
   content: string;
-  toolSummarization?: ToolAnalysisResult[];
+  toolSummarization?: string; //ToolAnalysisResult[]
 }

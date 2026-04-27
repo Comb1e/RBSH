@@ -143,7 +143,7 @@ export function parseMultipleToolResults(input: string): ToolAnalysisResult[] {
     return results;
   }
   const item = ToolAnalysisResultSchema.safeParse(parsedArray);
-  console.log("\n", item);
+  console.log("\n", JSON.stringify(item));
   if (item.success) {
     results.push(item.data);
   }

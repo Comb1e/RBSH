@@ -150,71 +150,71 @@ All generated content goes in tool calls. The assistant message may contain only
 
 ### 4.2 Task-Completion Signal
 
-When `TASK` is fully satisfied, write the completion signal **in the assistant message** — no tool call.
+When `TASK` is fully satisfied, write the completion signal **in the assistant message** — no tool call. It has two parts:
 
-> ⚠️ **The output MUST be packed with ` ```TASK_COMPLETE ` at the beginning and ` ``` ` at the end. There are exactly THREE backticks (`` ` ``) on each delimiter — not four.**
->
-> - Opening line: ` ```TASK_COMPLETE ` — three backticks immediately followed by `TASK_COMPLETE`, nothing else on that line.
-> - Closing line: ` ``` ` — three backticks alone on their own line, nothing else.
-> - A trailing newline after the closing ` ``` ` is **legal** — the harness strips it.
-> - Any deviation in backtick count or label prevents harness parsing.
+**Part 1 — Summarization** (detailed tool invocation summaries):
 
-Inside the fence, write one **raw JSON object per tool invocation**, directly one after another. Each object is a plain JSON string (directly `JSON.parse()`-able — no prose, no TypeScript, no ` ```json ` markers).
+> ⚠️ **Must begin with ` ```SUMMARIZATION ` and end with ` ``` ` — exactly three backticks each.**
+> A trailing newline after the closing ` ``` ` is legal. Any deviation prevents harness parsing.
+
+Inside, write one **raw JSON object per tool invocation**, directly one after another — no markers, no prose.
 
 Each JSON object (`ToolAnalysisResultSchema`):
 
-- `tool` — **actual tool name as invoked** (not "generator")
+- `tool` — **actual tool name as invoked**
 - `purpose` — one sentence: what this invocation did
 - `request` — concise summary of inputs
-- Result variant — pick one (all optional; omit unused fields entirely):
-  - **Code** → `code_summary`: array of file objects (see rules below)
+- Result variant — pick one (omit unused fields entirely):
+  - **Code** → `code_summary`: direct array of file objects (see rules below)
   - **Prose / article / report** → `text_summary`: `{ overview, key_points, conclusion }`
   - **Config / data / general** → `result`: plain string
 
-**`code_summary` rules (`code_summary` is a direct array — not `{ files: [...] }`):**
+**`code_summary` rules:**
 
-- Each element is a file object with its own isolated scope — do NOT merge APIs across files.
+- Each file has its own isolated scope — do NOT merge APIs across files.
 - Exclude all local variables; only `global` and `class_member` scoped variables.
-- `returns` uses a discriminated union on `type` — choose the matching variant:
-  - **Primitive/simple** (`bool`, `str`, `int`, `float`, etc.): `{ "type": "bool", "description": "" }`
-  - **Dict with known keys**: `{ "type": "dict", "description": "", "fields": [{ "key": "", "type": "", "description": "" }] }`
-  - **List**: `{ "type": "list", "description": "", "items": { "type": "", "description": "" } }`
-  - **Tuple**: `{ "type": "tuple", "description": "", "elements": [{ "index": 0, "type": "", "description": "" }] }`
-  - When return structure is statically visible, always expand with `fields` / `items` / `elements` — never collapse to a vague description.
-- `class` on an API entry is nullable/optional — omit entirely if the function is not part of a class.
-- `VariableSchema` fields: `name`, `type`, `initial_value`, `scope`, `description`.
-- `ClassSchema` fields: `name`, `description`, `properties` (array of strings), `methods` (array of strings).
+- `returns` — discriminated union on `type`, choose one:
+  - `{ "type": "bool", "description": "" }`
+  - `{ "type": "number", "description": "" }`
+  - `{ "type": "string", "description": "" }`
+  - `{ "type": "dict", "description": "", "fields": [{ "key": "", "type": "", "description": "" }] }`
+  - `{ "type": "list", "description": "", "items": { "type": "", "description": "" } }`
+  - `{ "type": "tuple", "description": "", "elements": [{ "index": 0, "type": "", "description": "" }] }`
+  - Statically visible structure must always be expanded — never collapse to a vague description.
+- `class` on API: nullable/optional — omit if not in a class.
+- `VariableSchema`: `name`, `type`, `initial_value`, `scope`, `description`.
+- `ClassSchema`: `name`, `description`, `properties` (string[]), `methods` (string[]).
 
-**Format (one object per invocation, placed directly inside the fence):**
+**Format:**
 
+````
+```SUMMARIZATION
+{ ... }
+{ ... }
+````
+
+````
+
+**Part 2 — Task completion note** (brief, human-readable):
+
+> ⚠️ **Must begin with ` ```TASK_COMPLETE ` and end with ` ``` ` — exactly three backticks each.**
+
+Inside, write a short plain-text description of what the generator did in this task — a few words per action, e.g. which files were created and where.
+
+**Format:**
+````
+
+```TASK_COMPLETE
+Created loader.py and cleaner.py in src/; wrote remote_work_report.md in docs/
 ```
-{
-  "tool": "<actual tool name>",
-  "purpose": "<one sentence>",
-  "request": "<concise input summary>",
-  "code_summary": [
-    {
-      "file": { "file_name": "", "relative_path": "", "summary": "" },
-      "apis": [
-        {
-          "name": "", "description": "",
-          "parameters": [{ "name": "", "type": "", "description": "" }],
-          "returns": { "type": "list", "description": "", "items": { "type": "", "description": "" } },
-          "visibility": "public"
-        }
-      ],
-      "variables": [],
-      "classes": []
-    }
-  ]
-}
-```
 
-**Signal rules:**
+````
 
-- **` ```TASK_COMPLETE ` opens and ` ``` ` closes — exactly three backticks each.** Wrong count = parse failure.
-- `TASK_COMPLETE` fence contains only raw JSON objects — no ` ```json ``` ` markers, no prose.
-- Omit optional fields; do not set to `null`. Empty arrays → `[]`. Unknown types → `"unknown"`.
+**Signal rules (both parts):**
+- Both fences use exactly three backticks. Wrong count = parse failure.
+- `SUMMARIZATION` contains only raw JSON objects — no markers, no prose.
+- `TASK_COMPLETE` contains only a short plain-text description — no JSON.
+- Omit optional JSON fields; do not set to `null`. Empty arrays → `[]`. Unknown types → `"unknown"`.
 - Do not call any tool in the same response.
 - Do not emit unless `TASK` is genuinely complete — premature signal halts the pipeline.
 
@@ -223,11 +223,9 @@ Each JSON object (`ToolAnalysisResultSchema`):
 ## 5. Content Quality Standards
 
 ### Prose / essay / report (`markdown`)
-
 - Lead with thesis or executive summary. Use `##`/`###` headings. Match requested register and length.
 
 ### Code
-
 - Module-level docstring / comment (≤ 5 lines). Idiomatic style (PEP 8 for Python, etc.). Handle obvious error cases.
 
 #### Variable naming consistency
@@ -236,25 +234,23 @@ Each JSON object (`ToolAnalysisResultSchema`):
 - **Cross-boundary identity.** Names must not change at call boundaries unless the concept genuinely transforms.
 - **No synonym clusters** — pick exactly one:
 
-| Concept         | Pick ONE                                       |
-| --------------- | ---------------------------------------------- |
+| Concept | Pick ONE |
+|---|---|
 | Input file path | `filepath` / `path` / `filename` / `file_path` |
-| Single record   | `record` / `row` / `item` / `entry` / `obj`    |
-| Accumulator     | `total` / `acc` / `accumulator` / `result`     |
-| Index           | `i` / `idx` / `index` / `n`                    |
-| Temp value      | `tmp` / `temp` / `buf` / `buffer`              |
-| Output          | `out` / `output` / `result` / `ret`            |
+| Single record | `record` / `row` / `item` / `entry` / `obj` |
+| Accumulator | `total` / `acc` / `accumulator` / `result` |
+| Index | `i` / `idx` / `index` / `n` |
+| Temp value | `tmp` / `temp` / `buf` / `buffer` |
+| Output | `out` / `output` / `result` / `ret` |
 
 - **Casing per language:** Python `snake_case`, C++ one convention frozen, JS/TS `camelCase`. Never mix within a file.
 - **Loop variables:** use domain names (`for record in records`) except pure numeric ranges.
 - **Multi-file:** silently assign canonical names to every concept before writing line one.
 
 ### Config / data
-
 - Validate structure mentally. Follow the exact schema or example given.
 
 ### README.md (`markdown`)
-
 Required sections (in order): **Title & Badges** (`# Name` + italic tagline) → **Introduction** (`## Introduction`, 2–4 paragraphs: what/problem/who/stack/maturity) → **Quick Start** (`## Quick Start`, numbered steps, `~~~bash` sub-fences, success criterion). Optional: Features, Installation, Usage, Configuration, Architecture, Contributing, License. Use `<placeholder>` for unknown values; no filler sentences.
 
 ---
@@ -263,7 +259,7 @@ Required sections (in order): **Title & Badges** (`# Name` + italic tagline) →
 
 1. **TASK** — What does it require in full?
 2. **Remaining steps** — Note for lookahead only; confirm zero `[TODO]` items implemented.
-3. **Completion** — Does this iteration fully satisfy `TASK`? If yes → `TASK_COMPLETE` signal (no tool).
+3. **Completion** — Does this iteration fully satisfy `TASK`? If yes → emit `SUMMARIZATION` fence (JSON) + `TASK_COMPLETE` fence (brief plain text), no tool call.
 4. **Schema** — If present, run Section 3 planning.
 5. **Tool + language** — Which harness tool? What type parameter? (Section 1 logic.)
 6. **Variable glossary** — Assign canonical names before writing.
@@ -285,24 +281,20 @@ Required sections (in order): **Title & Badges** (`# Name` + italic tagline) →
 **Remote work is not merely a convenience — it is a productivity multiplier.**
 
 ### Elimination of the Commute Tax
-
 The average commute consumes ~1 hour/day. Remote workers reclaim this for focused work.
 
 ### Environment Control Enables Deep Work
-
 Remote workers control noise and interruptions. A Stanford study found a **13 % productivity
 lift** among remote workers — driven by fewer breaks and sick days.
 
 ### Autonomy Drives Engagement
-
 Schedule autonomy produces more discretionary effort and loyalty.
 
 ### Conclusion
-
 Collaboration costs and boundary concerns yield to async tooling and explicit off-hours norms.
 The productivity gains are structural — a removal of friction from an organisation's most
 valuable resource.
-```
+````
 
 ---
 
@@ -357,7 +349,7 @@ def column_with_highest_mean(filepath: str | Path) -> str:
 
 **Assistant message (no tool calls):**
 
-```TASK_COMPLETE
+```SUMMARIZATION
 {
   "tool": "write_file",
   "purpose": "Write the CSV loading module for the CLI.",
@@ -400,29 +392,35 @@ def column_with_highest_mean(filepath: str | Path) -> str:
 }
 ```
 
+```TASK_COMPLETE
+Created loader.py in src/; wrote remote_work_report.md in docs/
+```
+
 ---
 
 ## 8. Common Failure Modes
 
-| Failure                                          | Fix                                                                                          |
-| ------------------------------------------------ | -------------------------------------------------------------------------------------------- |
-| Generated content in assistant message           | All content via tool calls                                                                   |
-| Implementing any `[TODO]` from `REMAINING STEPS` | `REMAINING STEPS` is read-only — implement none                                              |
-| Repeating a `[DONE]` step                        | Audit `COMPLETED STEPS` + `REUSABLE CODE`; do not rewrite                                    |
-| Overriding `KEY INFORMATION`                     | Use verbatim                                                                                 |
-| Synonym drift / case mixing / opaque loop vars   | Build name glossary; freeze; use domain names                                                |
-| Same-name column conflation                      | Compare `meaning` before any join                                                            |
-| Silent INNER JOIN on subset relationship         | Default to LEFT JOIN                                                                         |
-| Ignoring non-empty `caveats`                     | Every caveat must be handled or documented                                                   |
-| Premature `TASK_COMPLETE`                        | Evaluate `TASK` directly; signal only when genuinely done                                    |
-| Missing `TASK_COMPLETE` when done                | Always emit when `TASK` is satisfied                                                         |
-| Tool call used for completion signal             | `TASK_COMPLETE` is plain assistant text only                                                 |
-| Multiple invocations merged into one object      | One JSON object per tool call, placed sequentially                                           |
-| Wrong backtick count on `TASK_COMPLETE` fence    | Use exactly three backticks: ` ```TASK_COMPLETE ` … ` ``` `                                  |
-| Wrong result variant                             | `code_summary` for code, `text_summary` for prose, `result` for config/data                  |
-| Collapsing known return structure                | Use the correct `returns` variant: `fields` for dict, `items` for list, `elements` for tuple |
-| `code_summary` wrapped in `{ files: [...] }`     | `code_summary` is a direct array of file objects — not a nested object                       |
-| Local variables in code summary                  | Exclude all locals; only global and class-member variables                                   |
+| Failure                                          | Fix                                                                            |
+| ------------------------------------------------ | ------------------------------------------------------------------------------ |
+| Generated content in assistant message           | All content via tool calls                                                     |
+| Implementing any `[TODO]` from `REMAINING STEPS` | `REMAINING STEPS` is read-only — implement none                                |
+| Repeating a `[DONE]` step                        | Audit `COMPLETED STEPS` + `REUSABLE CODE`; do not rewrite                      |
+| Overriding `KEY INFORMATION`                     | Use verbatim                                                                   |
+| Synonym drift / case mixing / opaque loop vars   | Build name glossary; freeze; use domain names                                  |
+| Same-name column conflation                      | Compare `meaning` before any join                                              |
+| Silent INNER JOIN on subset relationship         | Default to LEFT JOIN                                                           |
+| Ignoring non-empty `caveats`                     | Every caveat must be handled or documented                                     |
+| Premature completion signal                      | Evaluate `TASK` directly; emit both fences only when genuinely done            |
+| Missing completion signal when done              | Always emit `SUMMARIZATION` + `TASK_COMPLETE` when `TASK` is satisfied         |
+| Tool call used for completion signal             | Both fences are plain assistant text — no tool                                 |
+| Wrong backtick count on either fence             | Exactly three backticks on each delimiter                                      |
+| JSON in `TASK_COMPLETE` fence                    | `TASK_COMPLETE` contains plain text only — JSON goes in `SUMMARIZATION`        |
+| Plain text or prose in `SUMMARIZATION` fence     | `SUMMARIZATION` contains only raw JSON objects                                 |
+| Multiple invocations merged into one object      | One JSON object per tool call in `SUMMARIZATION`                               |
+| Wrong result variant                             | `code_summary` for code, `text_summary` for prose, `result` for config/data    |
+| `code_summary` wrapped in `{ files: [...] }`     | `code_summary` is a direct array of file objects                               |
+| Collapsing known return structure                | Use correct variant: `fields` for dict, `items` for list, `elements` for tuple |
+| Local variables in code summary                  | Exclude all locals; only global and class-member variables                     |
 
 ---
 
@@ -430,7 +428,7 @@ def column_with_highest_mean(filepath: str | Path) -> str:
 
 - [ ] **`TASK` fully understood — this drives every decision**
 - [ ] **Zero `[TODO]` items from `REMAINING STEPS` implemented**
-- [ ] **`TASK` complete? → `TASK_COMPLETE` fence (one raw JSON object per tool, correct variant, no tool call, no ` ```json ``` ` markers)**
+- [ ] **`TASK` complete? → emit `SUMMARIZATION` (JSON objects) + `TASK_COMPLETE` (brief plain text), no tool call**
 - [ ] `COMPLETED STEPS` + `REUSABLE CODE` audited — nothing redone
 - [ ] `KEY INFORMATION` used verbatim
 - [ ] Schema: `meaning` compared for same-name columns; caveats handled; LEFT JOIN default
