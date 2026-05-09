@@ -83,7 +83,7 @@ async function generatorEvaluatorLoop(
   console.warn(
     `\n[WARN]  Max iterations (${env.AGENT_MAX_ITERATIONS}) reached. Returning best attempt.`
   );
-  return { content: evaluationStr, toolSummarization: "" };
+  return { content: evaluationStr, toolSummarization: [] };
 }
 
 const harnessTask = { prompts: ["user_prompt.md"] };

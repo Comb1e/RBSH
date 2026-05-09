@@ -29,7 +29,7 @@ export async function readFile(args: ReadFileArgs): Promise<ReadFileResult> {
         withFileTypes: true,
       });
       return {
-        success: true,
+        success: "list_dir_success",
         type: "directory",
         path: resolvedPath,
         entries: entries.map((e) => ({
@@ -79,7 +79,7 @@ export async function readFile(args: ReadFileArgs): Promise<ReadFileResult> {
     const usedDefaults = !args.startLine && !args.endLine;
 
     return {
-      success: true,
+      success: "read_file_success",
       type: "file",
       path: resolvedPath,
       startLine: start,

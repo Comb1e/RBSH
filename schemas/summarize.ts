@@ -7,33 +7,11 @@ const ParameterSchema = z.object({
   description: z.string(),
 });
 
-// Schema for Primitive / Simple Type
-const PrimitiveBoolReturnSchema = z.object({
-  type: z.literal("bool"),
-  description: z.string(),
-});
-
-const PrimitiveNumberReturnSchema = z.object({
-  type: z.literal("number"),
-  description: z.string(),
-});
-
-const PrimitiveStringReturnSchema = z.object({
-  type: z.literal("string"),
-  description: z.string(),
-});
-
 // Schema for Dict / Object with known keys
 const FieldSchema = z.object({
   key: z.string(),
   type: z.string(), // e.g., "pd.DataFrame"
   description: z.string(),
-});
-
-const DictReturnSchema = z.object({
-  type: z.literal("dict"),
-  description: z.string(),
-  fields: z.array(FieldSchema),
 });
 
 // Schema for List / Array with known element structure
@@ -44,34 +22,20 @@ const ItemSchema = z.object({
   // For now, keeping it simple as per your example
 });
 
-const ListReturnSchema = z.object({
-  type: z.literal("list"),
-  description: z.string(),
-  items: ItemSchema,
-});
-
-// Schema for Tuple with known positions
 const ElementSchema = z.object({
   index: z.number(),
   type: z.string(), // e.g., "np.ndarray"
   description: z.string(),
-});
-
-const TupleReturnSchema = z.object({
-  type: z.literal("tuple"),
-  description: z.string(),
-  elements: z.array(ElementSchema),
+  fields: z.array(FieldSchema).optional(),
 });
 
 // Combine them using discriminatedUnion on the 'type' field
-export const ReturnsSchema = z.discriminatedUnion("type", [
-  PrimitiveBoolReturnSchema,
-  PrimitiveNumberReturnSchema,
-  PrimitiveStringReturnSchema,
-  DictReturnSchema,
-  ListReturnSchema,
-  TupleReturnSchema,
-]);
+export const ReturnsSchema = z.object({
+  type: z.string(),
+  description: z.string(),
+  elements: z.array(ElementSchema).optional(),
+  items: ItemSchema.optional(),
+});
 
 const ApiSchema = z.object({
   name: z.string(),
@@ -143,9 +107,10 @@ export function parseMultipleToolResults(input: string): ToolAnalysisResult[] {
     return results;
   }
   const item = ToolAnalysisResultSchema.safeParse(parsedArray);
-  console.log("\n", JSON.stringify(item));
   if (item.success) {
     results.push(item.data);
+  } else {
+    console.warn("Failed to validate array item:", item.error);
   }
   return results;
 }

@@ -2,7 +2,7 @@ import * as fs from "fs/promises";
 import * as path from "path";
 import {
   CodeBlock,
-  PathExtractionResult,
+  ScoreExtractionResult,
   CodeUnifiedInfo,
 } from "@/types/index.js";
 
@@ -276,29 +276,29 @@ export async function extractMarkdownAndSave(text: string): Promise<string[]> {
  */
 export function extractTaskCompleteContent(input: string): string | null {
   // Regex explanation:
-  // ````TASK_COMPLETE\n : Matches the opening fence specifically for task-complete
+  // ```TASK_COMPLETE\n : Matches the opening fence specifically for task-complete
   // ([\s\S]*?)       : Captures any character (including newlines) non-greedily
   // \n````            : Matches the closing fence
-  const regex = /```TASK_COMPLETE\n([\s\S]*?)\n```/;
+  const regex = /```TASK_COMPLETE([\s\S]*?)```/;
 
   const match = input.match(regex);
 
   if (match && match[1] !== undefined) {
     return match[1];
   }
-
+  console.log("[INFO] No task compeletion messages found.", match);
   return null;
 }
 
 export function extractSummarizationContent(input: string): string | null {
-  const regex = /```SUMMARIZATION\n([\s\S]*?)\n```/;
+  const regex = /```SUMMARIZATION([\s\S]*?)```/;
 
   const match = input.match(regex);
 
   if (match && match[1] !== undefined) {
     return match[1];
   }
-
+  console.log("[INFO] No summarizations found.", match);
   return null;
 }
 
@@ -309,4 +309,62 @@ export function serializeResult(result: unknown): string {
   if (typeof result === "string") return result;
 
   return JSON.stringify(result);
+}
+
+/**
+ * Extracts the overall score and pass/fail status from a text string.
+ *
+ * @param text - The input string containing score information.
+ * @returns An object with score and status, or null if not found.
+ */
+export function extractOverallScore(text: string): ScoreExtractionResult {
+  if (!text || typeof text !== "string") {
+    return {
+      score: 0,
+      status: "Fail",
+    };
+  }
+
+  // Strategy:
+  // 1. Look for the "## Overall Score" header.
+  // 2. Capture the number (integer or decimal) following it.
+  // 3. Capture the "Pass" or "Fail" keyword appearing after the score.
+
+  // Regex Explanation:
+  // ##\s*Overall\s+Score : Matches the header "## Overall Score" (flexible whitespace)
+  // \s*                  : Optional whitespace/newlines after header
+  // (\d+(?:\.\d+)?)      : Capture Group 1: The score (e.g., 4.0, 4, 92.5)
+  // .*?                  : Non-greedy match for any characters in between (e.g., "/ 4.0 —")
+  // (Pass|Fail)          : Capture Group 2: The status "Pass" or "Fail"
+  // i                    : Case-insensitive flag
+  const regex =
+    /##\s*Overall\s+Score[\s\S]*?(\d+(?:\.\d+)?)[\s\S]*?(Pass|Fail)/i;
+
+  const match = text.match(regex);
+
+  if (!match) {
+    console.log(match);
+    return {
+      score: 0,
+      status: "Fail",
+    };
+  }
+
+  const scoreStr = match[1];
+  const statusStr = match[2].toLowerCase();
+
+  const score = parseFloat(scoreStr);
+
+  if (isNaN(score)) {
+    return {
+      score: 0,
+      status: "Fail",
+    };
+  }
+
+  return {
+    score: score,
+    // Normalize to capitalized 'Pass' or 'Fail'
+    status: statusStr === "pass" ? "Pass" : "Fail",
+  };
 }

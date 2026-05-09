@@ -34,11 +34,6 @@ export async function runAgent(
     const content = completion.content;
     const toolCalls = completion?.toolCalls;
 
-    if (content == "") {
-      console.log(`[WARN] ${role} returned empty content; retrying...`);
-      continue;
-    }
-
     // Check toolCalls
     if (toolCalls != undefined && toolCalls.length > 0) {
       console.log(
@@ -72,22 +67,25 @@ export async function runAgent(
           evaluatorUseStr.push(toolUseStr);
         }
       });
+    } else if (content == "") {
+      console.log(`[WARN] ${role} returned empty content; retrying...`);
+      continue;
     }
 
     const ifComplete: string | null = extractTaskCompleteContent(
       completion.content
     );
-    const ifToolCalls: string | null = extractSummarizationContent(
-      completion.content
-    );
     if (ifComplete) {
+      const ifToolCalls: string | null = extractSummarizationContent(
+        completion.content
+      );
       if (ifToolCalls) {
         const summarization = parseMultipleToolResults(ifToolCalls);
         console.log(`\n[INFO] ${role} task completed.`);
         summarizeResults.push(...summarization);
         return {
           content: JSON.stringify(evaluatorUseStr),
-          toolSummarization: ifToolCalls,
+          toolSummarization: summarizeResults,
         };
       } else {
         console.log(`\n[INFO] ${role} task completed without tool calls.`);

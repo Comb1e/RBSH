@@ -2,7 +2,7 @@ import type { HandoffArtifact, AgentMessage } from "@/types/index.js";
 import { readFilesFromRecord } from "@/utils/get_params.js";
 
 const generatorBase = {
-  skills: ["generator.md"],
+  skills: ["generator.md", "user_preferences.md"],
 };
 
 export async function createGeneratorBaseMessage(

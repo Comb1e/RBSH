@@ -16,7 +16,7 @@ export async function runEvaluator(
   task: string,
   output: string,
   inputSchemaDescription: string,
-  preCodeSummarize: string[] //ToolAnalysisResult[]
+  preCodeSummarize: ToolAnalysisResult[] //ToolAnalysisResult[]
 ): Promise<AgentCompletionResult> {
   console.log("\n╔══════════════════════════════╗");
   console.log("║  EVALUATOR AGENT             ║");

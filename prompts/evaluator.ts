@@ -3,7 +3,7 @@ import type { ToolAnalysisResult } from "@/schemas/index.js";
 import { readFilesFromRecord } from "@/utils/get_params.js";
 
 const evaluatorBase = {
-  skills: ["evaluator.md"],
+  skills: ["evaluator.md", "user_preferences.md"],
 };
 
 export async function getEvaluatorPrompt(
@@ -11,7 +11,7 @@ export async function getEvaluatorPrompt(
   background: string,
   output: string,
   inputSchemaDescription: string,
-  preCodeSummarize: string[] //ToolAnalysisResult[]
+  preCodeSummarize: ToolAnalysisResult[] //ToolAnalysisResult[]
 ): Promise<AgentMessage[]> {
   const basicSkills = await readFilesFromRecord(evaluatorBase);
   const systemPrompt = `

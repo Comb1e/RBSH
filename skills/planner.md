@@ -36,17 +36,17 @@ Return a single-element array containing the original task string verbatim.
 Common examples:
 
 - **Single-file edits with clear instructions** — "Fix the typo in
-  #auth.service.ts# line 42", "Add a missing null-check in #parser.go#"
+  **auth.service.ts** line 42", "Add a missing null-check in **parser.go**"
 - **Lookup / read-only tasks** — "Show me the current retry config",
-  "List all files that import #pipeline.core#"
+  "List all files that import **pipeline.core**"
 - **Simple one-liner commands** — running a formatter, a linter, a single
   grep, or a git status
 - **Reproducing a clearly-described bug with a unit test** (single file, clear
   expected behaviour)
 - **Generating boilerplate from a template** where the template already
   specifies all the content
-- **Trivial generation** — "Create an empty #utils_test.go# file",
-  "Add a TODO comment to #main.go#"
+- **Trivial generation** — "Create an empty **utils_test.go** file",
+  "Add a TODO comment to **main.go**"
 - **Knowledge / identity questions** — "Who are you?", "Do you know about X?",
   "What is Y?" — see dedicated section below
 
@@ -120,13 +120,13 @@ explain what you can do and provide a concrete example if helpful.
 
 Good step granularity:
 
-- "Implement the FlagEvaluator service in #flag/evaluator.go#"
-- "Add the HTTP handler and route registration in #api/flags.go#"
-- "Write integration tests covering the happy path and the flag-disabled path in #flag/evaluator_test.go#"
+- "Implement the FlagEvaluator service in **flag/evaluator.go**"
+- "Add the HTTP handler and route registration in **api/flags.go**"
+- "Write integration tests covering the happy path and the flag-disabled path in **flag/evaluator_test.go**"
 
 Bad step granularity (too fine):
 
-- "Open #flag/evaluator.go#"
+- "Open **flag/evaluator.go**"
 - "Define the struct fields"
 - "Write the Evaluate method signature"
 - "Fill in the method body"
@@ -184,7 +184,7 @@ Follow this sequence strictly. Each layer depends only on layers above it:
    modules, then executes the full pipeline end to end. **This is always the
    last file the agent writes**, because it depends on everything else.
 
-8. **README** — #README.md# is second to last (see closing steps rule).
+8. **README** — **README.md** is second to last (see closing steps rule).
 
 9. **Completion summary** — always last (see closing steps rule).
 
@@ -193,27 +193,27 @@ Follow this sequence strictly. Each layer depends only on layers above it:
 **Bad** — solver created before the data loader it depends on:
 
 ```
-1. "Create #solver.py# to compute the optimal dispatch using LP"
-2. "Create #data_loader.py# to parse input from P6.xls"
-3. "Create #main.py# to run the pipeline"
+1. "Create **solver.py** to compute the optimal dispatch using LP"
+2. "Create **data_loader.py** to parse input from P6.xls"
+3. "Create **main.py** to run the pipeline"
 ```
 
 **Bad** — entry point created before the modules it orchestrates:
 
 ```
-1. "Create #main.py# to run the full pipeline"
-2. "Create #data_loader.py# to parse input files"
-3. "Create #solver.py# to compute the result"
+1. "Create **main.py** to run the full pipeline"
+2. "Create **data_loader.py** to parse input files"
+3. "Create **solver.py** to compute the result"
 ```
 
 **Good** — data first, solver after, entry point last:
 
 ```
-1. "Create #data_loader.py# to read and parse all sheets from P6.xls"
-2. "Create #solver.py# to compute the optimal dispatch using the parsed data"
-3. "Create #exporter.py# to write the schedule output to dispatch_result.csv"
-4. "Create #main.py# to orchestrate loading, solving, and exporting"
-5. "Write a summary of all changes made in this task to #README.md#"
+1. "Create **data_loader.py** to read and parse all sheets from P6.xls"
+2. "Create **solver.py** to compute the optimal dispatch using the parsed data"
+3. "Create **exporter.py** to write the schedule output to dispatch_result.csv"
+4. "Create **main.py** to orchestrate loading, solving, and exporting"
+5. "Write a summary of all changes made in this task to **README.md**"
 6. "Report to the user whether the task completed successfully and what was done in one or two sentences"
 ```
 
@@ -226,7 +226,7 @@ produce a file change, it must not appear in the plan — not even as a
 
 This is a hard filter, not a formatting requirement:
 
-- **No read-only steps.** "Read #storage/pipeline_store.go# to understand the
+- **No read-only steps.** "Read **storage/pipeline_store.go** to understand the
   interface" is not a valid step. Understanding happens silently during the
   write step that follows.
 - **No investigation steps.** "Check how the DI container is wired" is not a
@@ -234,16 +234,16 @@ This is a hard filter, not a formatting requirement:
   actually writes the affected file.
 - **No planning steps.** "Decide the schema for the new table" is not a valid
   step. Decisions are made implicitly before writing the migration file.
-- **Every step must name the file it creates or modifies** using the `#filename#`
-  marker and the full relative path from the repo root: #storage/redis_pipeline_store.go#,
+- **Every step must name the file it creates or modifies** using the `**filename**`
+  marker and the full relative path from the repo root: **storage/redis_pipeline_store.go**,
   not just the bare name or a prose description.
 - If a step modifies multiple files, mark all of them: "Update the interface
-  in #storage/pipeline_store.go# and the mock in #storage/mock_pipeline_store.go#"
+  in **storage/pipeline_store.go** and the mock in **storage/mock_pipeline_store.go**"
 - If the file does not exist yet, use the intended path: "Create
-  #api/flags/handler.go# with the HTTP handler and route registration"
+  **api/flags/handler.go** with the HTTP handler and route registration"
 
-**`#filename#` scope — generator-written files only:**
-`#filename#` must be used **exclusively** for files that the generator agent
+**`**filename**` scope — generator-written files only:**
+`**filename**` must be used **exclusively** for files that the generator agent
 itself will create or modify. It must **not** be applied to:
 
 - Files that the written code produces at runtime (e.g., a CSV export, a log
@@ -252,20 +252,20 @@ itself will create or modify. It must **not** be applied to:
   program's behaviour
 
 The distinction is: _does the agent's code-writing action touch this file?_
-If yes → `#filename#`. If the file is produced later when the code runs →
+If yes → `**filename**`. If the file is produced later when the code runs →
 plain text, no markers.
 
 **Bad** (runtime output file incorrectly marked):
 
 ```
-"Write result export logic in #economic_dispatch_solver.py# to output the
-optimal generation schedule to a CSV file #dispatch_result_hour12.csv#"
+"Write result export logic in **economic_dispatch_solver.py** to output the
+optimal generation schedule to a CSV file **dispatch_result_hour12.csv**"
 ```
 
 **Good** (only the source file the agent writes is marked):
 
 ```
-"Write result export logic in #economic_dispatch_solver.py# to output the
+"Write result export logic in **economic_dispatch_solver.py** to output the
 optimal generation schedule to a CSV file dispatch_result_hour12.csv"
 ```
 
@@ -283,7 +283,7 @@ autonomously before writing. Only the write step is planned.
 **Good** (write step that implicitly requires that understanding):
 
 ```
-"Implement RedisBackedPipelineStore in #storage/redis_pipeline_store.go#"
+"Implement RedisBackedPipelineStore in **storage/redis_pipeline_store.go**"
 ```
 
 ### One file, one step (strict)
@@ -300,23 +300,23 @@ steps — they are all described within the single step for that file.
 **Bad** (same file split across four steps — not allowed):
 
 ```
-1. "Create #economic_dispatch_solver.py# to implement the solver that reads P6.xls and computes the optimal schedule for hour 12"
-2. "Implement Excel parsing logic in #economic_dispatch_solver.py# to load data from all sheets"
-3. "Add optimisation logic in #economic_dispatch_solver.py# using scipy.optimize.linprog"
-4. "Write result export logic in #economic_dispatch_solver.py# to save the schedule to dispatch_result_hour12.csv"
+1. "Create **economic_dispatch_solver.py** to implement the solver that reads P6.xls and computes the optimal schedule for hour 12"
+2. "Implement Excel parsing logic in **economic_dispatch_solver.py** to load data from all sheets"
+3. "Add optimisation logic in **economic_dispatch_solver.py** using scipy.optimize.linprog"
+4. "Write result export logic in **economic_dispatch_solver.py** to save the schedule to dispatch_result_hour12.csv"
 ```
 
 **Good** (all logic for the file combined into one step):
 
 ```
-1. "Create #economic_dispatch_solver.py# to read P6.xls, parse all required sheets, solve the economic dispatch for hour 12 using linear programming, and export the result to dispatch_result_hour12.csv"
+1. "Create **economic_dispatch_solver.py** to read P6.xls, parse all required sheets, solve the economic dispatch for hour 12 using linear programming, and export the result to dispatch_result_hour12.csv"
 ```
 
 **Alternative good** (if the work genuinely spans distinct files):
 
 ```
-1. "Create #economic_dispatch_solver.py# with the optimisation core: load data from P6.xls, apply LP constraints, and return the schedule"
-2. "Create #dispatch_exporter.py# to format and save the solver output to dispatch_result_hour12.csv"
+1. "Create **economic_dispatch_solver.py** with the optimisation core: load data from P6.xls, apply LP constraints, and return the schedule"
+2. "Create **dispatch_exporter.py** to format and save the solver output to dispatch_result_hour12.csv"
 ```
 
 **One exception — adjustment steps:** after a file has been generated and
@@ -328,8 +328,8 @@ not planned upfront; they are added dynamically based on observed output.
 
 After generation or execution, the agent may add follow-up steps such as:
 
-- "Fix compile errors in #executor.go# identified after first run"
-- "Adjust Run() in #executor.go# to handle the nil-pipeline edge case found during testing"
+- "Fix compile errors in **executor.go** identified after first run"
+- "Adjust Run() in **executor.go** to handle the nil-pipeline edge case found during testing"
 
 These are fine and expected. The initial plan should not pre-empt them by
 over-specifying; let the agent react to reality.
@@ -339,11 +339,11 @@ over-specifying; let the agent react to reality.
 Every plan must end with exactly these two steps in this order:
 
 **Second-to-last — README step:**
-Write the #README.md# file documenting what was done: files created or
+Write the **README.md** file documenting what was done: files created or
 modified, what the feature or fix achieves, and key decisions made. Phrased as:
 
 ```
-"Write a summary of all changes made in this task to #README.md#"
+"Write a summary of all changes made in this task to **README.md**"
 ```
 
 **Last — completion summary step:**
@@ -380,7 +380,7 @@ merged into a coarser step?
 Always return a `string[]`. Each element is a plain-language string.
 No sub-bullets. No markdown inside the strings. No numbering inside the
 strings (the caller renders order). **Every step except the final completion
-summary must name a file it writes or modifies using the `#filename#`
+summary must name a file it writes or modifies using the `**filename**`
 marker** (see Filename rule above). Steps that only read, explore, or
 understand are not allowed. **The second-to-last element must always be the
 README step; the last element must always be the completion summary.**
@@ -388,17 +388,17 @@ README step; the last element must always be the completion summary.**
 **No plan needed** — single-element array with the raw task (no closing steps):
 
 ```json
-["Add a null-check for the config pointer in #config/loader.go#"]
+["Add a null-check for the config pointer in **config/loader.go**"]
 ```
 
 **Plan needed** — multi-element array ending with README then completion summary:
 
 ```json
 [
-  "Implement RedisBackedPipelineStore in #storage/redis_pipeline_store.go#",
-  "Wire the new store into the DI container in #app/wire.go#",
-  "Add unit tests for RedisBackedPipelineStore in #storage/redis_pipeline_store_test.go#",
-  "Write a summary of all changes made in this task to #README.md#",
+  "Implement RedisBackedPipelineStore in **storage/redis_pipeline_store.go**",
+  "Wire the new store into the DI container in **app/wire.go**",
+  "Add unit tests for RedisBackedPipelineStore in **storage/redis_pipeline_store_test.go**",
+  "Write a summary of all changes made in this task to **README.md**",
   "Report to the user whether the task completed successfully and what was done in one or two sentences"
 ]
 ```
@@ -426,10 +426,10 @@ Self-contained & unambiguous?
      │
      ▼
 Draft coarse steps (1 step = 1 unit of work)
-Each step must write/modify a file → mark it #filename#
+Each step must write/modify a file → mark it **filename**
 One file per step, ordered by dependency (data layer → core → entry point)
      │
-Append README step → "Write a summary of all changes made in this task to #README.md#"
+Append README step → "Write a summary of all changes made in this task to **README.md**"
 Append completion summary → "Report to the user whether the task completed successfully and what was done in one or two sentences"
      │
 Return string[] of steps
