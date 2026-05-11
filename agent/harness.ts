@@ -86,23 +86,19 @@ async function generatorEvaluatorLoop(
   return { content: evaluationStr, toolSummarization: [] };
 }
 
-const harnessTask = { prompts: ["user_prompt.md"] };
-
 export async function runHarness(
   provider: LLMProvider,
+  plan: string,
   inputSchemas: string[]
 ): Promise<void> {
-  const userTaskArray = await readFilesFromRecord(harnessTask);
-  const userTask = userTaskArray.join("\n");
   console.log("═".repeat(60));
   console.log("RBSH");
   console.log("═".repeat(60));
-  console.log(`\nUser task:\n${userTask}`);
 
   // 1. Comprehension
   const comprehensionArtifactRaw = await runComprehension(
     provider,
-    userTask,
+    plan,
     inputSchemas
   );
   const comprehensionArtifact = extractSpreadsheetAnalysis(

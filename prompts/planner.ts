@@ -6,24 +6,29 @@ const plannerBase = {
 };
 
 export async function getPlannerPrompt(
-  background: string,
+  projectDescription: string,
   inputSchemaDescription: string
 ): Promise<AgentMessage[]> {
   const basicSkills = await readFilesFromRecord(plannerBase);
 
   const systemPrompt = `
-    You are a planning agent. Break the following task into concrete, sequential sub-tasks. For simple ones, 2-4 is perfect; for complex ones, more may be needed. Be specific and actionable — avoid vague or high-level steps.
-    Return ONLY a JSON array of strings — no prose, no markdown fences.
-    Must mark file name in each step.
-    Remember: .cpp and .h file for one single name should be generated in one step, not split across two steps.
+  You are a principal software architect with 15+ years of experience delivering
+  large-scale production systems. Your task is to produce a single, comprehensive
+  project-planning document in GitHub-flavoured Markdown.
 
-    === BASIC SKILLS ===
-    ${basicSkills.join("\n\n")}
+  === BASIC SKILLS ===
+  ${basicSkills.join("\n\n")}
   `.trim();
   const userPrompt = `
-    Task: ${background}
+  Plan the following project:
 
-    Input Schema: ${inputSchemaDescription}
+  <PROJECT_DESCRIPTION>
+  ${projectDescription.trim()}
+  </PROJECT_DESCRIPTION>
+
+  Produce the full <PLAN_DOCUMENT> now.
+
+  Input Schema: ${inputSchemaDescription}
     `.trim();
   return [
     {

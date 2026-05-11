@@ -3,15 +3,18 @@
 // Decomposes the user task into a structured step list.
 // ---------------------------------------------------------------------------
 
-import type { LLMProvider, LLMCompletionResult } from "@/types/index.js";
+import type { LLMProvider, ParsedPlan } from "@/types/index.js";
 import { getPlannerPrompt } from "@/prompts/index.js";
 import { env } from "../config/env.js";
+import { plannerParseResponse, writePlanFile } from "@/utils/index.js";
+
+const PLAN_OUTPUT_DIR = "./output/plan";
 
 export async function runPlanner(
   provider: LLMProvider,
   background: string,
   inputSchemaDescription: string
-): Promise<string[]> {
+): Promise<string> {
   console.log("\n╔══════════════════════════════╗");
   console.log("║  PLANNER AGENT               ║");
   console.log("╚══════════════════════════════╝\n");
@@ -35,17 +38,21 @@ export async function runPlanner(
     console.warn(
       "[ERROR] Planner failed to return any content; falling back to single-step plan."
     );
-    return [background];
+    return "";
   }
 
   try {
-    const steps: string[] = JSON.parse(raw);
-    console.log("\nPlan:\n", steps.map((s, i) => `${i + 1}. ${s}`).join("\n"));
-    return steps;
+    const plan: ParsedPlan = plannerParseResponse(raw);
+    const planFilePath: string = writePlanFile(
+      plan.filename,
+      plan.markdown,
+      PLAN_OUTPUT_DIR
+    );
+    return planFilePath;
   } catch {
     console.warn(
       "Planner returned non-JSON; falling back to single-step plan."
     );
-    return [background];
+    return "";
   }
 }
