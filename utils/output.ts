@@ -273,7 +273,8 @@ export async function extractMarkdownAndSave(text: string): Promise<string[]> {
  * Case-insensitive. Also tolerates leading/trailing whitespace around the content.
  */
 export function extractTaskCompleteContent(input: string): string | null {
-  const regex = /<TASK_COMPLETE>\s*([\s\S]*?)\s*<\/TASK_COMPLETE>/i;
+  // Accepts: <TASK_COMPLETE>...</TASK_COMPLETE> (with optional attributes, case-insensitive)
+  const regex = /<TASK_COMPLETE\b[^>]*>\s*([\s\S]*?)\s*<\/TASK_COMPLETE>/i;
   const match = input.match(regex);
 
   if (match && match[1] !== undefined) {
@@ -285,10 +286,10 @@ export function extractTaskCompleteContent(input: string): string | null {
 
 /**
  * Extracts the content inside <SUMMARIZATION>...</SUMMARIZATION> XML tags.
- * Case-insensitive. Also tolerates leading/trailing whitespace around the content.
+ * Accepts optional attributes (e.g. <SUMMARIZATION type="json">) and is case-insensitive.
  */
 export function extractSummarizationContent(input: string): string | null {
-  const regex = /<SUMMARIZATION>\s*([\s\S]*?)\s*<\/SUMMARIZATION>/i;
+  const regex = /<SUMMARIZATION\b[^>]*>\s*([\s\S]*?)\s*<\/SUMMARIZATION>/i;
   const match = input.match(regex);
 
   if (match && match[1] !== undefined) {

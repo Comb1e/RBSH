@@ -28,6 +28,7 @@ async function main() {
 
   let workType: string = "plan";
   const cliAddFiles: string[] = [];
+  let planPath: string = "";
 
   const addFlagIdx = args.indexOf("--add");
   if (addFlagIdx !== -1) {
@@ -40,6 +41,13 @@ async function main() {
     workType = args[0] || "plan";
   } else {
     workType = args[0] || "plan";
+  }
+
+  // If excute/generate is given a plan filename, resolve it now
+  if ((workType === "excute" || workType === "generate") && args[1]) {
+    planPath = path.join(OUTPUT_DIR, "plan", args[1]);
+    if (!planPath.endsWith(".md")) planPath += ".md";
+    console.log(`[INFO] Plan file: ${planPath}`);
   }
 
   // 1. Create provider
@@ -61,8 +69,6 @@ async function main() {
       `[INFO] Loaded ${inputSchemas.length} schema(s) from added files.`
     );
   }
-
-  let planPath: string = "";
 
   while (workType !== "quit") {
     switch (workType) {
@@ -186,6 +192,6 @@ async function main() {
 
 main();
 //npx tsx main.ts plan
-//npx tsx main.ts excute
+//npx tsx main.ts excute power-system-economic-dispatch-plan.md
 //npx tsx main.ts --add report.xlsx notes.md
 //npx tsx main.ts --add data.xlsx plan

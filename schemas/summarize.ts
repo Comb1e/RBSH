@@ -36,39 +36,51 @@ export const ReturnsSchema = z.object({
   items: ItemSchema.optional(),
 });
 
+// returns can be a plain string description OR a structured type object
+const ReturnsValueSchema = z.union([
+  z.string(),
+  z.object({
+    type: z.string(),
+    description: z.string(),
+    fields: z.array(FieldSchema).optional(),
+    items: ItemSchema.optional(),
+    elements: z.array(ElementSchema).optional(),
+  }),
+]);
+
 const ApiSchema = z.object({
   name: z.string(),
-  description: z.string(),
-  parameters: z.array(ParameterSchema),
-  returns: ReturnsSchema,
-  visibility: z.string(),
+  description: z.string().optional().default(""),
+  parameters: z.array(ParameterSchema).optional().default([]),
+  returns: ReturnsValueSchema.optional().default("unknown"),
+  visibility: z.string().optional().default("public"),
   class: z.string().nullable().optional(),
 });
 
 const VariableSchema = z.object({
   name: z.string(),
-  type: z.string(),
-  initial_value: z.string(),
-  scope: z.string(),
-  description: z.string(),
+  type: z.string().optional().default("unknown"),
+  initial_value: z.string().optional().default(""),
+  scope: z.string().optional().default("global"),
+  description: z.string().optional().default(""),
 });
 
 const ClassSchema = z.object({
   name: z.string(),
-  description: z.string(),
-  properties: z.array(z.string()),
-  methods: z.array(z.string()),
+  description: z.string().optional().default(""),
+  properties: z.array(z.string()).optional().default([]),
+  methods: z.array(z.string()).optional().default([]),
 });
 
 const FileSchema = z.object({
   file: z.object({
     file_name: z.string(),
-    relative_path: z.string(),
-    summary: z.string(),
+    relative_path: z.string().optional().default(""),
+    summary: z.string().optional().default(""),
   }),
-  apis: z.array(ApiSchema),
-  variables: z.array(VariableSchema),
-  classes: z.array(ClassSchema),
+  apis: z.array(ApiSchema).optional().default([]),
+  variables: z.array(VariableSchema).optional().default([]),
+  classes: z.array(ClassSchema).optional().default([]),
 });
 
 const TextSummarySchema = z.object({
@@ -81,8 +93,8 @@ const TextSummarySchema = z.object({
 
 export const ToolAnalysisResultSchema = z.object({
   tool: z.string(),
-  purpose: z.string(),
-  request: z.string(),
+  purpose: z.string().optional().default(""),
+  request: z.string().optional().default(""),
   result: z.string().optional(),
   code_summary: z.array(FileSchema).optional(),
   text_summary: TextSummarySchema.optional(),
@@ -90,13 +102,30 @@ export const ToolAnalysisResultSchema = z.object({
 
 export type ToolAnalysisResult = z.infer<typeof ToolAnalysisResultSchema>;
 
+/**
+ * Attempts to repair common LLM JSON formatting errors.
+ * - Trailing commas before } or ]
+ * - Single-quoted strings (converted to double-quoted)
+ */
+function repairJSON(raw: string): string {
+  let s = raw.trim();
+  // Remove trailing commas before ] or }
+  s = s.replace(/,(\s*[}\]])/g, "$1");
+  // Remove comments (// to end of line)
+  s = s.replace(/\/\/.*$/gm, "");
+  // Remove block comments
+  s = s.replace(/\/\*[\s\S]*?\*\//g, "");
+  return s;
+}
+
 export function parseMultipleToolResults(input: string): ToolAnalysisResult[] {
   const trimmed = input.trim();
   if (!trimmed) return [];
 
   // Strategy 1: Valid JSON array [{...}, {...}] — the canonical format
   try {
-    const parsed = JSON.parse(trimmed);
+    const repaired = repairJSON(trimmed);
+    const parsed = JSON.parse(repaired);
     if (Array.isArray(parsed)) {
       const results: ToolAnalysisResult[] = [];
       for (const item of parsed) {
@@ -126,7 +155,7 @@ export function parseMultipleToolResults(input: string): ToolAnalysisResult[] {
     const results: ToolAnalysisResult[] = [];
     for (const line of lines) {
       try {
-        const obj = JSON.parse(line);
+        const obj = JSON.parse(repairJSON(line));
         const valid = ToolAnalysisResultSchema.safeParse(obj);
         if (valid.success) results.push(valid.data);
       } catch {
@@ -148,7 +177,7 @@ export function parseMultipleToolResults(input: string): ToolAnalysisResult[] {
       if (i > 0) chunk = "{" + chunk;
       if (i < chunks.length - 1) chunk = chunk + "}";
       try {
-        const obj = JSON.parse(chunk);
+        const obj = JSON.parse(repairJSON(chunk));
         const valid = ToolAnalysisResultSchema.safeParse(obj);
         if (valid.success) results.push(valid.data);
       } catch {

@@ -45,6 +45,7 @@ export function plannerParseResponse(raw: string): ParsedPlan {
     "## 2. Technical Stack",
     "## 3. Module Division",
     "## 4. Development Timeline",
+    "## 5. Implementation Order",
   ];
   const missing = requiredSections.filter((s) => !markdown.includes(s));
   if (missing.length > 0) {
@@ -79,20 +80,56 @@ export function plannerParseResponse(raw: string): ParsedPlan {
     );
   }
 
+  // 8. Implementation Order — must contain at least one numbered file entry
+  const implOrderMatch = markdown.match(
+    /## 5\. Implementation Order\s*\n([\s\S]*?)(?=\n## |$)/
+  );
+  if (!implOrderMatch) {
+    throw new Error(
+      '"## 5. Implementation Order" section is missing.'
+    );
+  }
+  const implItems = implOrderMatch[1].match(/^\d+\.\s*`.+`\s*—/gm);
+  if (!implItems || implItems.length < 1) {
+    throw new Error(
+      '"## 5. Implementation Order" must contain at least one numbered item ' +
+        'in the format: `1. \\`path/file\\` — description`.'
+    );
+  }
+
   return { filename, markdown };
 }
 
-// ── File writer ───────────────────────────────────────────────────────────────
+// ── Step extraction ───────────────────────────────────────────────────────────
 
 /**
- * Writes the Markdown content to disk.
- * Sanitises the filename to prevent path-traversal before writing.
- */
-/**
- * Extracts step names from the "## 3. Module Division" section of a plan.
- * Each ### sub-heading under that section becomes a step.
+ * Extracts ordered file-level steps from the plan.
+ * Primary source: "## 5. Implementation Order" — a numbered list of files.
+ * Fallback: "## 3. Module Division" ### sub-headings (coarse module names).
+ *
+ * Each step is a string the generator receives as its TASK.
+ * For Implementation Order items the format is: `path/to/file.py — description`.
  */
 export function extractStepsFromPlan(planMarkdown: string): string[] {
+  // Primary: parse Implementation Order
+  const implMatch = planMarkdown.match(
+    /## 5\. Implementation Order\s*\n([\s\S]*?)(?=\n## |$)/
+  );
+  if (implMatch) {
+    const items = implMatch[1]
+      .split("\n")
+      .map((line) => {
+        const m = line.trim().match(/^\d+\.\s*`([^`]+)`\s*—\s*(.+)$/);
+        return m ? `${m[1]} — ${m[2]}` : "";
+      })
+      .filter(Boolean);
+    if (items.length > 0) return items;
+  }
+
+  // Fallback: Module Division headings
+  console.warn(
+    "[WARN] No Implementation Order found; falling back to Module Division headings."
+  );
   const sectionMatch = planMarkdown.match(
     /## 3\. Module Division\s*\n([\s\S]*?)(?=\n## |$)/
   );

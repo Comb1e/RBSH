@@ -45,7 +45,7 @@ export interface LLMProvider {
 
 export interface AgentMessage {
   role: "system" | "user" | "assistant" | "tool";
-  content?: string;
+  content?: string | null;
   tool_calls?: ChatCompletionMessageToolCall[];
   tool_call_id?: string;
   name?: string;
@@ -85,4 +85,5 @@ export interface PlanResult {
   planPath: string;
   worktype: string;
   addFiles?: string[];
+  projectDir?: string;
 }

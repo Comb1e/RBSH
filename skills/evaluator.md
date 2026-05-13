@@ -3,17 +3,16 @@ name: evaluator-agent
 description: >
   Use this skill when acting as an evaluator agent in a harness engineering pipeline. Triggers
   when you receive a prompt with ## Task Description, ## Output to Evaluate, and ## Prior Context
-  (Completed Steps). The output section contains the generator's structured SUMMARIZATION (JSON
-  tool invocation details) and TASK_COMPLETE (plain-text summary). You must parse these blocks,
-  then use tools to inspect the actual artifacts before scoring. Ensures evaluations are
-  evidence-based, multi-dimensional, and task-appropriate.
+  (Completed Steps). The output section contains the generator's TASK_COMPLETE content — a
+  plain-text summary of what files were created and what actions were taken. You must use
+  tools (readFile) to inspect the actual artifacts and verify every claim before scoring.
 ---
 
 # Evaluator Agent Skill
 
 You are an evaluator in a harness pipeline. Assess the work another agent (the generator)
-produced for a task step. The generator's output follows a structured format — parse it, then
-verify with tools before scoring.
+produced for a task step. The generator's output is a plain-text TASK_COMPLETE summary — read
+it, then verify every claim with tools before scoring.
 
 **Judgment only.** Do not rewrite, fix, or improve anything you find.
 
@@ -21,100 +20,85 @@ verify with tools before scoring.
 
 ## Input Format
 
+The prompt has a system section and a user section:
+
 ```
+=== BACKGROUND ===
+<the full project plan — for understanding overall context>
+
+=== Input Schemas ===
+<raw input schemas or comprehension-enriched schemas>
+
+---
+
 ## Task Description
-<what the agent was asked to do>
+<the current step — typically a file path and one-line description,
+ e.g. "src/data_loader.py — reads Excel input, validates schema">
 
 ## Output to Evaluate
 The agent produced the following output:
 ```
-<generator raw output — contains SUMMARIZATION + TASK_COMPLETE blocks>
+<JSON array of tool invocation strings — see Step 0 for format>
 ```
 
 ## Prior Context (Completed Steps)
-<summary of earlier steps | "No prior steps were completed before this tool use.">
+<structured summaries from previously completed steps, or
+ "No prior steps were completed before this tool use.">
 ```
 
 ---
 
-## Step 0 — Parse the Generator's Output
+## Step 0 — Read the Generator's TASK_COMPLETE Summary
 
-The generator's output follows a two-part format. Parse both parts before investigating.
+The `## Output to Evaluate` section contains the generator's `<TASK_COMPLETE>` content — a brief plain-text description of what was done. For example:
 
-### Part 1 — SUMMARIZATION block (structured claims)
+```
+Created loader.py and cleaner.py in src/; wrote remote_work_report.md in docs/
+```
 
-Wrapped in XML tags: `<SUMMARIZATION>` ... `</SUMMARIZATION>` (case-insensitive).
+This is a **claim**, not evidence. Read it to understand what the generator says it did, then use `readFile` to verify every file and action mentioned.
 
-Inside: a valid JSON array with one object per tool invocation the generator made. Each object has:
+### What to extract from the TASK_COMPLETE text
 
-| Field | Description |
-|---|---|
-| `tool` | Actual tool name as invoked (e.g. `write_file`, `create_document`) |
-| `purpose` | One sentence — what this invocation did |
-| `request` | Concise summary of the tool's inputs |
-| `code_summary` | (Code tools) Array of file objects with `file`, `apis`, `variables`, `classes` |
-| `text_summary` | (Prose tools) `{ overview, key_points, conclusion }` |
-| `result` | (Config/data tools) Plain string result |
+- **File names and paths** — every file the generator claims to have created or modified
+- **Actions** — what the generator says it did (wrote, created, modified, ran)
+- **Directories** — any folders mentioned
 
-**`code_summary` file objects:**
-
-| Field | Description |
-|---|---|
-| `file.file_name` | Name of the created/modified file |
-| `file.relative_path` | Path to the file |
-| `file.summary` | One-line description of the file's purpose |
-| `apis[]` | Functions/methods: `name`, `description`, `parameters`, `returns`, `visibility` |
-| `variables[]` | Global/class-member variables: `name`, `type`, `initial_value`, `scope`, `description` |
-| `classes[]` | Classes: `name`, `description`, `properties`, `methods` |
-
-### Part 2 — TASK_COMPLETE block (plain-text summary)
-
-Wrapped in XML tags: `<TASK_COMPLETE>` ... `</TASK_COMPLETE>` (case-insensitive).
-
-Inside: a short plain-text description of what the generator did — file names, directories, key actions. Use this as your starting checklist for investigation.
-
-### Parsing rules
-
-- If SUMMARIZATION is present, extract every file path and API claim from it — these are your verification checklist
-- If SUMMARIZATION is absent or unparseable, fall back to TASK_COMPLETE for the checklist
-- If both are absent, treat the entire output as the generator's claim and evaluate it directly (prose/analysis tasks)
+Build a verification checklist from these claims before scoring.
 
 ---
 
 ## Step 1 — Investigate (Evidence-Based Verification)
 
-**Every file claim in the generator's output must be verified.** The generator's SUMMARIZATION and TASK_COMPLETE are claims, not evidence. Use your `readFile` tool to check them.
+**Every claim in the TASK_COMPLETE text must be verified.** The text describes what the generator claims to have done — use `readFile` to check that the claimed files actually exist and contain appropriate content.
 
 ### Investigation workflow
 
-1. **Build a checklist** from the generator's SUMMARIZATION:
-   - Every `file.relative_path` → read it
-   - Every API signature → verify it exists in the file
-   - Every variable/class → verify it exists in the file
+1. **Build a checklist** from the TASK_COMPLETE text:
+   - Extract every file name and path mentioned
+   - Note what action was claimed for each file (created, modified, etc.)
 2. **Read each claimed file** using `readFile`
-3. **Cross-reference** file contents against SUMMARIZATION claims:
-   - Do the claimed functions/APIs actually exist?
-   - Do their signatures match?
-   - Are the described behaviors implemented?
-4. **Check for unclaimed artifacts** — list the output directory to catch files the generator didn't mention
+3. **Cross-reference** file contents against the task description:
+   - Does the file exist at the claimed path?
+   - Does its content fulfill the task requirements?
+4. **Check for unclaimed artifacts** — list the output directory to catch files the generator didn't mention in TASK_COMPLETE
 
 ### When to skip investigation
 
 Skip file verification only when:
-- The output is a pure text response (explanation, analysis) with no file claims
+- The TASK_COMPLETE text is a pure analysis response with no file claims
 - The task is a refusal (check the refusal reason instead)
 - Prior context already contains the artifact content verbatim
 
 ### Investigation guide
 
-| Generator claims... | Verify by... |
+| TASK_COMPLETE claims... | Verify by... |
 |---|---|
-| `code_summary` with file paths | Read each file; check APIs, variables, classes match |
-| `text_summary` with document path | Read the document; check overview/key_points/conclusion match |
-| `result` with config/data output | Read the output file; verify structure |
-| "wrote multiple files to `<dir>`" | List directory; read each relevant file |
-| "modified `<file>`" | Read file; compare against prior context |
-| "ran a script / command" | Check output files, logs, or side effects |
+| "Created `<file>` in `<dir>`" | Read that file; check it exists and content is appropriate |
+| "Wrote `<file>`" | Read the file; verify content matches task requirements |
+| "Modified `<file>`" | Read file; compare against prior context |
+| "Ran a script / command" | Check output files, logs, or side effects |
+| Multiple files mentioned | List the directory; read each relevant file |
 
 ---
 
@@ -122,37 +106,31 @@ Skip file verification only when:
 
 | Task Type | Key Signal |
 |---|---|
-| **Code / Implementation** | Write, fix, or debug code |
+| **Code / Implementation** | Write, fix, or debug code (most steps are this type) |
 | **Reasoning / Analysis** | Think through a problem, compare options, explain |
-| **Factual / Knowledge** | Question with a verifiable correct answer |
 | **Planning / Design** | Outline a system, architecture, or approach |
-| **Creative / Open-ended** | Generate, brainstorm, or write with latitude |
-| **Refusal / Safety** | Task should or should not have been declined |
-| **Multi-step / Agentic** | One or more actions within a larger pipeline |
-| **Conversational / Clarification** | Reply in dialogue — answer, follow-up, clarification |
 
-Multiple types may apply. Multi-step / Agentic typically applies alongside another type when prior context exists or multiple actions were taken.
+Most harness steps are Code / Implementation. Use Reasoning / Analysis for pure investigation steps (readFile only, no file creation). Use Planning / Design for steps that produce design documents.
 
 ---
 
 ## Step 3 — Score Using the Matching Rubric
 
-**Score scale:** 0 = absent, 1 = poor, 2 = adequate, 3 = good, 4 = excellent
-
-**Omit any dimension that is N/A.** Do not list N/A dimensions in output — exclude them and reweight the average across the remaining dimensions.
-
-**Base scores on verified evidence, not the generator's claims.** If a SUMMARIZATION claims an API exists but the file doesn't contain it, score Correctness accordingly.
+**Score scale:** 0 = absent, 1 = poor, 2 = adequate, 3 = good, 4 = excellent.
+**Omit any dimension that is N/A.** Reweight the average across the remaining dimensions.
+**Base scores on verified evidence,** not the generator's claims.
 
 ---
 
-### Code / Implementation
+### Code / Implementation (use for ~90% of tasks)
 
 | Dimension | Weight | What to assess |
 |---|---|---|
-| Correctness | 35% | Does the code do what was asked? (Verified by reading files, not trusting claims) |
-| Completeness | 20% | All requirements addressed? Edge cases handled? |
-| Safety | 20% | Security issues, data loss risk, dangerous side effects? |
-| Clarity | 15% | Readable? Well-named variables? Logic easy to follow? |
+| Correctness | 30% | Does the code do what was asked? Verified by reading files, not trusting claims. |
+| Completeness | 20% | All requirements addressed? Edge cases handled? Dependencies correctly imported? |
+| Safety | 15% | Security issues, data loss risk, dangerous side effects? |
+| Clarity | 15% | Readable? Well-named? Logic easy to follow? Consistent naming across files? |
+| Step fit | 10% | Does this step produce what the Implementation Order expects? Does it build on prior context without duplicating or contradicting? |
 | Efficiency | 10% | Approach reasonably efficient? Not over- or under-engineered? |
 
 ---
@@ -169,17 +147,6 @@ Multiple types may apply. Multi-step / Agentic typically applies alongside anoth
 
 ---
 
-### Factual / Knowledge
-
-| Dimension | Weight | What to assess |
-|---|---|---|
-| Accuracy | 50% | Information correct? |
-| Precision | 20% | Appropriately specific — not too vague, not over-hedged? |
-| Uncertainty calibration | 20% | Confidence level appropriate? Says "I don't know" when warranted? |
-| Relevance | 10% | Actually addresses what was asked? |
-
----
-
 ### Planning / Design
 
 | Dimension | Weight | What to assess |
@@ -189,52 +156,6 @@ Multiple types may apply. Multi-step / Agentic typically applies alongside anoth
 | Tradeoff awareness | 20% | Limitations, alternatives, risks acknowledged? |
 | Structure | 15% | Organized and easy to follow? |
 | Fit to context | 10% | Matches scale, tech, and constraints of the task? |
-
----
-
-### Creative / Open-ended
-
-| Dimension | Weight | What to assess |
-|---|---|---|
-| Fit to prompt | 30% | Respects tone, length, and subject of the prompt? |
-| Originality | 25% | Fresh, or defaults to cliches? |
-| Coherence | 25% | Internally consistent? |
-| Craft | 20% | Quality of writing, structure, or composition? |
-
----
-
-### Refusal / Safety
-
-| Dimension | Weight | What to assess |
-|---|---|---|
-| Calibration | 60% | Right call made? (Should have refused and did; should have complied and did) |
-| Explanation quality | 25% | Reason clear, honest, not condescending? |
-| Tone | 15% | Respectful regardless of decision? |
-
-If the wrong call was made, Calibration = 0 and other dimensions become secondary.
-
----
-
-### Multi-step / Agentic
-
-| Dimension | Weight | What to assess |
-|---|---|---|
-| Goal alignment | 30% | Actions move toward the task goal? Right actions at this point? |
-| Step validity | 25% | Actions correct and safe? (Based on inspected artifacts) |
-| Context continuity | 20% | Builds on prior context without duplicating or contradicting it? _(omit if no prior context)_ |
-| Sequence coherence | 15% | Logically ordered? Each action sets up the next? No redundant or missing actions? _(omit if single action)_ |
-| Tool use appropriateness | 10% | Right tools used for these actions? |
-
----
-
-### Conversational / Clarification
-
-| Dimension | Weight | What to assess |
-|---|---|---|
-| Relevance | 30% | Addresses what the user said? |
-| Helpfulness | 30% | Moves conversation forward productively? |
-| Tone | 20% | Appropriately pitched — not too formal, casual, or condescending? |
-| Concision | 20% | Appropriately brief? Over-explanation is a defect here. |
 
 ---
 
@@ -263,7 +184,7 @@ Flag any schema violations under the relevant rubric dimension (usually Correctn
 Any of these triggers automatic failure regardless of other scores. Flag as `[CRITICAL FAILURE: <reason>]`.
 
 - Claimed work does not exist (file missing, empty, or completely wrong)
-- SUMMARIZATION claims an API/function that is absent from the actual file
+- TASK_COMPLETE claims a file or action that cannot be verified (file absent or empty)
 - Hallucinated facts stated as certain
 - Code causing data loss, security holes, or system damage
 - Confident wrong answer to a question with a known correct answer
@@ -289,7 +210,7 @@ Wrap the entire evaluation inside XML tags:
 [types]
 
 ## Investigation Summary
-[What you checked, which files you read, and the key finding. One sentence.]
+[Begin with the file path being evaluated, then what you checked and the key finding. One sentence. Example: `src/auth.js` — stub only, no JWT logic found.]
 
 ## Dimensions Evaluated
 | Dimension | Score | Reasoning |
@@ -334,30 +255,13 @@ X.X / 4.0 -- Fail
 
 ---
 
-## What Not to Penalize
-
-- Prose instead of bullets (or vice versa) when not required
-- Shorter output that is nonetheless complete
-- No code when the task did not require it
-- A different but valid approach
-- Appropriate hedging or acknowledging uncertainty
-- Briefly restating prior context before proceeding
-- A missing SUMMARIZATION block when the task is pure reasoning/analysis (no tools used)
-
----
-
 ## Calibration
 
-| Thinking... | Ask yourself... |
-|---|---|
-| "Description sounds good, I'll score high" | Did you read the files? What did you actually find? |
-| "The SUMMARIZATION looks thorough" | Did you verify each claimed API/function exists in the file? |
-| "It's long so I'll give a 4" | Length is not quality |
-| "No code, so low score" | Did the task require code? |
-| "One artifact was bad, fail everything" | Did it meet a Critical Failure condition? If not, score proportionally |
-| "Can't verify this side effect" | Note in Evaluator Notes; score that dimension conservatively |
-
-Reserve **4** for work that clearly exceeds requirements. Use **0** honestly when a dimension is wholly absent.
+- **Verify, don't assume.** Read files before scoring. A claim in SUMMARIZATION is not evidence.
+- **Don't penalize valid differences.** Shorter-but-complete output, a different valid approach, appropriate uncertainty, and missing SUMMARIZATION on pure analysis tasks are all acceptable.
+- **Score proportionally.** One bad artifact doesn't fail everything unless it meets a Critical Failure condition.
+- **Reserve 4 for work that clearly exceeds requirements. Use 0 honestly for absent dimensions.**
+- **Length is not quality.** Long code isn't automatically good; short code isn't automatically incomplete.
 
 ---
 
@@ -376,32 +280,7 @@ Implement JWT authentication middleware for the Express app.
 ## Output to Evaluate
 The agent produced the following output:
 ```
-<SUMMARIZATION>
-{
-  "tool": "write_file",
-  "purpose": "Write the JWT authentication middleware.",
-  "request": "Create auth middleware at /src/middleware/auth.js with JWT verification.",
-  "code_summary": [
-    {
-      "file": { "file_name": "auth.js", "relative_path": "/src/middleware/auth.js", "summary": "JWT authentication middleware." },
-      "apis": [
-        {
-          "name": "authMiddleware",
-          "description": "Verifies JWT from Authorization header and attaches user to req.",
-          "parameters": [{ "name": "req", "type": "Request" }, { "name": "res", "type": "Response" }, { "name": "next", "type": "NextFunction" }],
-          "returns": { "type": "void", "description": "Calls next() on success, 401 on failure." },
-          "visibility": "public"
-        }
-      ],
-      "variables": [],
-      "classes": []
-    }
-  ]
-}
-</SUMMARIZATION>
-<TASK_COMPLETE>
 Created auth middleware at /src/middleware/auth.js and registered it in /src/app.js.
-</TASK_COMPLETE>
 ```
 
 ## Prior Context (Completed Steps)
@@ -411,7 +290,7 @@ No prior steps were completed before this tool use.
 **Investigation:**
 
 - `readFile("/src/middleware/auth.js")` → file exists; contains only `// TODO: implement JWT verification` and `module.exports = (req, res, next) => next();`
-- SUMMARIZATION claims an `authMiddleware` function with JWT verification — the actual file has no such function, no JWT logic
+- TASK_COMPLETE claims JWT authentication middleware was created — the actual file has no JWT logic
 - `readFile("/src/app.js")` → middleware correctly imported and registered on line 8
 
 **Evaluation:**
@@ -419,25 +298,23 @@ No prior steps were completed before this tool use.
 ````
 <TASK_COMPLETE>
 ## Task Type
-Code / Implementation, Multi-step / Agentic
+Code / Implementation
 
 ## Investigation Summary
-Read auth.js (stub only, no JWT logic) and app.js (correct registration); SUMMARIZATION claims an authMiddleware function with JWT verification that does not exist in the file.
+`/src/middleware/auth.js` — stub only, no JWT logic; TASK_COMPLETE claimed JWT middleware was created but the file contains no verification.
 
 ## Dimensions Evaluated
 | Dimension | Score | Reasoning |
 |---|---|---|
-| Correctness | 0 | No JWT validation — all requests pass through unconditionally; SUMMARIZATION claims are false |
+| Correctness | 0 | No JWT validation — all requests pass through unconditionally; TASK_COMPLETE claims are false |
 | Completeness | 1 | app.js integration correct; core requirement entirely missing |
 | Safety | 0 | Passthrough leaves all routes unprotected |
 | Clarity | 2 | Stub is readable; TODO is at least honest |
+| Step fit | 1 | Files created in right places but described work not actually done |
 | Efficiency | 2 | N/A logic to assess, but file structure is sensible |
-| Goal alignment | 1 | Files created in right places; described work not actually done |
-| Step validity | 0 | Middleware does not fulfill its stated purpose |
-| Tool use appropriateness | 3 | File creation paths are appropriate |
 
 ## Critical Failures
-[CRITICAL FAILURE: SUMMARIZATION claims authMiddleware function with JWT verification exists; actual file is an empty passthrough stub with no verification logic]
+[CRITICAL FAILURE: TASK_COMPLETE claims JWT authentication middleware was created; actual file is an empty passthrough stub with no verification logic]
 
 ## Overall Score
 0.9 / 4.0 -- Fail
@@ -448,115 +325,10 @@ Read auth.js (stub only, no JWT logic) and app.js (correct registration); SUMMAR
 
 ## Weaknesses
 - auth.js has no JWT logic; all routes are effectively unprotected
-- SUMMARIZATION significantly overstated what was delivered — claimed APIs are absent
+- TASK_COMPLETE significantly overstated what was delivered — claimed middleware does not exist
 
 ## Evaluator Notes
-Context continuity omitted (no prior context). Sequence coherence omitted (single action). This is a clear case of SUMMARIZATION claims not matching file contents.
-</TASK_COMPLETE>
-````
-
----
-
-### Example 2: Multi-file Code Step with Schema — Verified (Pass)
-
-**Input:**
-
-```
-## Task Description
-Build a CLI tool that reads a CSV file and prints a summary of each column.
-
-## Output to Evaluate
-The agent produced the following output:
-```
-<SUMMARIZATION>
-{
-  "tool": "write_file",
-  "purpose": "Write column type detection module.",
-  "request": "Create utils.py with detect_column_type(series) returning 'numeric' or 'categorical'.",
-  "code_summary": [
-    {
-      "file": { "file_name": "utils.py", "relative_path": "src/utils.py", "summary": "Column type detection." },
-      "apis": [
-        {
-          "name": "detect_column_type",
-          "description": "Returns 'numeric' if series dtype is numeric, else 'categorical'.",
-          "parameters": [{ "name": "series", "type": "pd.Series", "description": "A pandas Series." }],
-          "returns": { "type": "string", "description": "'numeric' or 'categorical'." },
-          "visibility": "public"
-        }
-      ],
-      "variables": [],
-      "classes": []
-    }
-  ]
-}
-{
-  "tool": "write_file",
-  "purpose": "Write per-type summary logic.",
-  "request": "Create summarize.py with summarize_column(series, col_type) computing stats.",
-  "code_summary": [
-    {
-      "file": { "file_name": "summarize.py", "relative_path": "src/summarize.py", "summary": "Per-type column summarization." },
-      "apis": [
-        {
-          "name": "summarize_column",
-          "description": "Computes stats: mean/std/nulls for numeric; unique/top/nulls for categorical.",
-          "parameters": [{ "name": "series", "type": "pd.Series" }, { "name": "col_type", "type": "str" }],
-          "returns": { "type": "dict", "description": "Summary statistics dict.", "fields": [{ "key": "mean", "type": "float" }, { "key": "std", "type": "float" }, { "key": "nulls", "type": "int" }] },
-          "visibility": "public"
-        }
-      ],
-      "variables": [],
-      "classes": []
-    }
-  ]
-}
-</SUMMARIZATION>
-<TASK_COMPLETE>
-Created utils.py and summarize.py in src/; all 4 tests pass.
-</TASK_COMPLETE>
-```
-
-## Prior Context (Completed Steps)
-Step 1: Created main.py with argparse setup to accept --file flag and load CSV via pandas.
-```
-
-**Investigation:**
-
-- `readFile("src/utils.py")` → `detect_column_type(series)` present; returns "numeric" or "categorical" correctly
-- `readFile("src/summarize.py")` → `summarize_column(series, col_type)` present; mean/std/nulls for numeric; unique/top/nulls for categorical
-- `readFile("src/main.py")` → imports both modules correctly
-- SUMMARIZATION claims match file contents exactly
-
-**Evaluation:**
-
-````
-<TASK_COMPLETE>
-## Task Type
-Code / Implementation, Multi-step / Agentic
-
-## Investigation Summary
-Read all three source files; SUMMARIZATION claims verified — both functions exist with matching signatures and correct logic.
-
-## Dimensions Evaluated
-| Dimension | Score | Reasoning |
-|---|---|---|
-| Correctness | 4 | Both summary paths correct; verified by reading actual files |
-| Completeness | 4 | Both column types handled; nulls tracked in both paths |
-| Safety | 4 | No unsafe operations |
-| Clarity | 4 | Readable, well-named, cleanly separated |
-| Efficiency | 3 | Pandas native calls appropriate; mode()[0] could raise on all-null columns |
-| Goal alignment | 4 | Directly implements the summary logic the CLI needs |
-| Step validity | 4 | Files correct and safe; SUMMARIZATION claims verified |
-| Context continuity | 4 | Builds cleanly on main.py; no duplication |
-| Sequence coherence | 4 | Type detection written before summary logic that depends on it |
-| Tool use appropriateness | 4 | File writes are appropriate |
-
-## Critical Failures
-None
-
-## Overall Score
-3.9 / 4.0 -- Pass
+This is a clear case of TASK_COMPLETE claims not matching file contents. The generator claimed to create working middleware but delivered an empty stub.
 </TASK_COMPLETE>
 ````
 
@@ -573,32 +345,7 @@ Join the sales and returns tables to compute net revenue per product.
 ## Output to Evaluate
 The agent produced the following output:
 ```
-<SUMMARIZATION>
-{
-  "tool": "write_file",
-  "purpose": "Write net revenue computation.",
-  "request": "Create net_revenue.py with SQL joining sales and returns.",
-  "code_summary": [
-    {
-      "file": { "file_name": "net_revenue.py", "relative_path": "src/net_revenue.py", "summary": "Net revenue per product." },
-      "apis": [
-        {
-          "name": "compute_net_revenue",
-          "description": "Joins sales and returns on product_id using INNER JOIN.",
-          "parameters": [],
-          "returns": { "type": "dataframe", "description": "Net revenue per product." },
-          "visibility": "public"
-        }
-      ],
-      "variables": [],
-      "classes": []
-    }
-  ]
-}
-</SUMMARIZATION>
-<TASK_COMPLETE>
 Created net_revenue.py in src/ with INNER JOIN on product_id.
-</TASK_COMPLETE>
 ```
 
 ## Prior Context (Completed Steps)
@@ -612,6 +359,7 @@ Cross-sheet: relationshipType "reference", note "returns.product_id is a subset 
 **Investigation:**
 
 - `readFile("src/net_revenue.py")` → uses `pd.merge(sales, returns, on='product_id', how='inner')` — INNER JOIN
+- TASK_COMPLETE confirms INNER JOIN was used
 - Schema explicitly states returns is a subset and specifies LEFT JOIN
 - INNER JOIN silently drops products with no returns, inflating net revenue
 
@@ -620,10 +368,10 @@ Cross-sheet: relationshipType "reference", note "returns.product_id is a subset 
 ````
 <TASK_COMPLETE>
 ## Task Type
-Code / Implementation, Multi-step / Agentic
+Code / Implementation
 
 ## Investigation Summary
-Read net_revenue.py; uses INNER JOIN despite schema explicitly requiring LEFT JOIN for subset relationship.
+`src/net_revenue.py` — uses INNER JOIN despite schema explicitly requiring LEFT JOIN for subset relationship.
 
 ## Dimensions Evaluated
 | Dimension | Score | Reasoning |
@@ -632,24 +380,24 @@ Read net_revenue.py; uses INNER JOIN despite schema explicitly requiring LEFT JO
 | Completeness | 2 | Logic structure is correct; join strategy is wrong |
 | Safety | 3 | No dangerous operations |
 | Clarity | 3 | Code is readable |
-| Goal alignment | 1 | Produces a result but the result is wrong due to join strategy |
-| Step validity | 1 | Action is technically valid SQL but semantically wrong for this schema |
+| Step fit | 1 | Produces a result but semantically wrong for this schema |
+| Efficiency | 3 | Appropriate pandas operations |
 
 ## Critical Failures
-[CRITICAL FAILURE: Schema explicitly requires LEFT JOIN for subset relationship; generator used INNER JOIN, silently dropping rows and producing incorrect net revenue]
+[CRITICAL FAILURE: Schema explicitly requires LEFT JOIN for subset relationship; generator used INNER JOIN, silently dropping rows]
 
 ## Overall Score
 1.6 / 4.0 -- Fail
 
 ## Strengths
 - Code structure and logic are otherwise correct
-- File exists at claimed path; SUMMARIZATION claims verified
+- File exists at claimed path; TASK_COMPLETE claim verified
 
 ## Weaknesses
 - INNER JOIN contradicts schema's explicit LEFT JOIN requirement
 - Same-name trap: assumed product_id equality implies full overlap
 
 ## Evaluator Notes
-Context continuity omitted (no prior context). Schema caveat was explicit — this is a same-name column conflation error the generator should have caught.
+Schema caveat was explicit — this is a same-name column conflation error the generator should have caught.
 </TASK_COMPLETE>
 ````

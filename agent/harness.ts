@@ -173,5 +173,72 @@ export async function runHarness(
   console.log("\n" + "═".repeat(60));
   console.log("  FINAL OUTPUT");
   console.log("═".repeat(60));
-  console.log(result);
+
+  const allSummaries = artifact.preToolSummarize;
+  if (allSummaries.length > 0) {
+    const files = new Map<
+      string,
+      { summary: string; apis: string[]; variables: string[]; classes: string[] }
+    >();
+
+    for (const s of allSummaries) {
+      if (s.code_summary) {
+        for (const f of s.code_summary) {
+          const key = f.file.relative_path || f.file.file_name;
+          if (!files.has(key)) {
+            files.set(key, {
+              summary: f.file.summary || "",
+              apis: [],
+              variables: [],
+              classes: [],
+            });
+          }
+          const entry = files.get(key)!;
+          for (const api of f.apis || []) {
+            entry.apis.push(`  ${api.name}(${(api.parameters || []).map((p) => p.name).join(", ")}) → ${typeof api.returns === "string" ? api.returns : (api.returns as any)?.description || ""}`);
+          }
+          for (const v of f.variables || []) {
+            entry.variables.push(`  ${v.name}: ${v.type} (${v.scope})`);
+          }
+          for (const c of f.classes || []) {
+            entry.classes.push(`  class ${c.name} — ${c.description || ""}`);
+          }
+        }
+      }
+    }
+
+    if (files.size > 0) {
+      console.log(`\n  ${files.size} file(s) created:\n`);
+      for (const [path, info] of files) {
+        console.log(`  📄 ${path}`);
+        if (info.summary) console.log(`     ${info.summary}`);
+        if (info.classes.length > 0) {
+          console.log(`     Classes:`);
+          info.classes.forEach((c) => console.log(c));
+        }
+        if (info.apis.length > 0) {
+          console.log(`     Functions:`);
+          info.apis.forEach((a) => console.log(a));
+        }
+        if (info.variables.length > 0) {
+          console.log(`     Variables:`);
+          info.variables.forEach((v) => console.log(v));
+        }
+        console.log("");
+      }
+    } else {
+      // Text or config output
+      for (const s of allSummaries) {
+        if (s.text_summary) {
+          console.log(`\n  📝 ${s.purpose || "Report"}: ${s.text_summary.overview || ""}`);
+        } else if (s.result) {
+          console.log(`\n  ⚙ ${s.purpose || "Result"}: ${s.result}`);
+        }
+      }
+    }
+  } else {
+    console.log("\n  (No structured output — see output directory for generated files)");
+  }
+
+  console.log("═".repeat(60));
 }

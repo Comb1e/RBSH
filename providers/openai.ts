@@ -89,6 +89,7 @@ export class OpenAIProvider implements LLMProvider {
             }));
           agentMessages.push({
             role: "assistant",
+            content: content || null,
             tool_calls: choice.message.tool_calls,
           });
           return { content, messages: agentMessages, toolCalls };
@@ -102,9 +103,7 @@ export class OpenAIProvider implements LLMProvider {
       const unifiedToolCalls: Record<number, UnifiedToolCall> = {};
       let currentMessage = "";
 
-      for await (const chunk of stream as AsyncIterable<
-        OpenAI.Chat.Completions.ChatCompletionChunk
-      >) {
+      for await (const chunk of stream as AsyncIterable<OpenAI.Chat.Completions.ChatCompletionChunk>) {
         const delta = chunk.choices[0]?.delta;
         const tool_calls = delta?.tool_calls;
         const content = delta?.content;
@@ -119,7 +118,8 @@ export class OpenAIProvider implements LLMProvider {
             if (toolCallChunk.function?.name)
               unifiedToolCalls[index].name = toolCallChunk.function.name;
             if (toolCallChunk.function?.arguments)
-              unifiedToolCalls[index].argStr += toolCallChunk.function.arguments;
+              unifiedToolCalls[index].argStr +=
+                toolCallChunk.function.arguments;
           }
         }
         if (content) {
@@ -131,7 +131,8 @@ export class OpenAIProvider implements LLMProvider {
       const openaiToolCalls = convertToOpenAIToolCalls(unifiedToolCalls);
       if (openaiToolCalls.length > 0) {
         agentMessages.push({
-          role: "assistant",
+          role: "assistant" as const,
+          content: currentMessage || null,
           tool_calls: openaiToolCalls,
         });
       } else {

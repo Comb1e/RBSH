@@ -26,10 +26,7 @@ export async function runAgent(
   let evaluatorUseStr: string[] = [];
   for (let iter = 1; iter <= env.AGENT_MAX_ITERATIONS; iter++) {
     // Call Agent
-    const completion = await provider.complete(
-      agentMessages,
-      toolRegistry
-    );
+    const completion = await provider.complete(agentMessages, toolRegistry);
     agentMessages = completion.messages;
     const content = completion.content;
     const toolCalls = completion?.toolCalls;
@@ -47,7 +44,6 @@ export async function runAgent(
       const toolMessages = executionResults.map((executed) => ({
         role: "tool" as const,
         tool_call_id: executed.toolCallId,
-        name: executed.name,
         content: serializeResult(executed.result),
       }));
       agentMessages.push(...toolMessages);

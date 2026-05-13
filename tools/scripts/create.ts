@@ -1,9 +1,9 @@
 import { mkdir, writeFile } from "fs/promises";
-import { dirname, resolve } from "path";
+import { dirname, resolve, sep } from "path";
 import { CreateFileOptions, ToolDefinition } from "@/types/index.js";
 import { createFileWithDirectoriesSchema } from "@/schemas/index.js";
 
-/** Files must be created within this directory tree. */
+/** All folders under ./output are acceptable write targets. */
 const ALLOWED_BASE = resolve("./output");
 
 /**
@@ -21,8 +21,11 @@ export async function createFileWithDirectories(
 
   const absolutePath = resolve(filePath);
 
-  // Path traversal protection
-  if (!absolutePath.startsWith(ALLOWED_BASE + "/") && absolutePath !== ALLOWED_BASE) {
+  // Path traversal protection — accept any path under ./output
+  if (
+    absolutePath !== ALLOWED_BASE &&
+    !absolutePath.startsWith(ALLOWED_BASE + sep)
+  ) {
     throw new Error(
       `Path traversal denied: "${filePath}" resolves outside allowed directory "${ALLOWED_BASE}".`
     );
