@@ -88,6 +88,22 @@ export function plannerParseResponse(raw: string): ParsedPlan {
  * Writes the Markdown content to disk.
  * Sanitises the filename to prevent path-traversal before writing.
  */
+/**
+ * Extracts step names from the "## 3. Module Division" section of a plan.
+ * Each ### sub-heading under that section becomes a step.
+ */
+export function extractStepsFromPlan(planMarkdown: string): string[] {
+  const sectionMatch = planMarkdown.match(
+    /## 3\. Module Division\s*\n([\s\S]*?)(?=\n## |$)/
+  );
+  if (!sectionMatch) return [];
+
+  const headings = sectionMatch[1].match(/^### (.+)$/gm);
+  if (!headings) return [];
+
+  return headings.map((h) => h.replace(/^### /, "").trim());
+}
+
 export function writePlanFile(
   filename: string,
   markdown: string,

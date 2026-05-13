@@ -185,6 +185,12 @@ Each JSON object (`ToolAnalysisResultSchema`):
 - `VariableSchema`: `name`, `type`, `initial_value`, `scope`, `description`.
 - `ClassSchema`: `name`, `description`, `properties` (string[]), `methods` (string[]).
 
+> ⚠️ **Evaluator verification:** An evaluator agent will read every file you claim to
+> create or modify and cross-reference its contents against your SUMMARIZATION. Every
+> API, variable, and class you list must exist in the actual file with the exact
+> signature you describe. File paths must be accurate. Claims that don't match the
+> files on disk will trigger a Critical Failure and automatic rejection.
+
 **Format:**
 
 ````

@@ -9,7 +9,7 @@ dotenv.config();
 // 2. Define and validate Schema
 const envSchema = z
   .object({
-    LLM_PROVIDER: z.enum(["openai", "anthropic"]).default("openai"),
+    LLM_PROVIDER: z.enum(["openai"]).default("openai"),
     TASK_BUDGET: z.preprocess((val) => {
       if (typeof val === "string") {
         return Number(val.replace(/_/g, ""));
@@ -30,7 +30,7 @@ const envSchema = z
     ENABLE_STREAMING: z
       .string()
       .transform((v) => v.toLowerCase() === "true")
-      .default(false),
+      .default("false"),
     LOG_LEVEL: z.enum(["error", "warn", "info", "debug"]).default("info"),
     NODE_ENV: z
       .enum(["development", "production", "test"])
@@ -42,13 +42,6 @@ const envSchema = z
         code: z.ZodIssueCode.custom,
         message: "OPENAI_API_KEY is necessary",
         path: ["OPENAI_API_KEY"],
-      });
-    }
-    if (val.LLM_PROVIDER === "anthropic" && !val.ANTHROPIC_API_KEY) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "ANTHROPIC_API_KEY is necessary",
-        path: ["ANTHROPIC_API_KEY"],
       });
     }
   });

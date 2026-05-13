@@ -7,14 +7,13 @@ import { __dirname } from "@/config/env.js";
 import { parseExcelSchemaToFile } from "./read_excel.js";
 
 export async function getFile(targetPath: string): Promise<string> {
-  let file: Promise<string> = Promise.resolve("");
   try {
-    file = readFile(targetPath, "utf-8");
+    return await readFile(targetPath, "utf-8");
   } catch (error) {
     console.error("[ERROR] Read file error", (error as Error).message);
     console.error("[ERROR] Target path:", targetPath);
+    return "";
   }
-  return file;
 }
 
 export async function readFilesFromRecord(
@@ -35,27 +34,23 @@ export async function readFilesFromRecord(
 
 /**
  * Reads contents from multiple files specified by an array of paths.
+ * Handles both absolute paths and paths relative to the project root.
  *
- * @param filePaths - An array of file paths (relative to __dirname or absolute)
+ * @param filePaths - An array of file paths (absolute, or relative to project root)
  * @returns A promise resolving to an array of file contents (strings)
  */
 export async function readFilesFromList(
   filePaths: string[]
 ): Promise<string[]> {
-  // Map each path to a promise that reads the file content
   const promises = filePaths.map(async (filePath) => {
-    // If filePaths are relative to the current module's directory:
-    const resolvedPath = path.join(__dirname, filePath);
-
-    // If filePaths are already absolute, use filePath directly instead:
-    // const resolvedPath = filePath;
-
+    // If already absolute, use directly; otherwise resolve relative to project root
+    const resolvedPath = path.isAbsolute(filePath)
+      ? filePath
+      : path.join(__dirname, filePath);
     return getFile(resolvedPath);
   });
 
-  // Wait for all files to be read in parallel
   const contents = await Promise.all(promises);
-
   return contents;
 }
 
@@ -79,7 +74,7 @@ export async function getSubDirectories(dirPath: string): Promise<string[]> {
  * @param dirPath - The root directory path to read.
  * @returns A promise resolving to an array of absolute file paths.
  */
-async function getAllFiles(dirPath: string): Promise<string[]> {
+export async function getAllFiles(dirPath: string): Promise<string[]> {
   const filesList: string[] = [];
 
   try {
@@ -111,84 +106,167 @@ async function getAllFiles(dirPath: string): Promise<string[]> {
 }
 
 /**
- * Main preprocessing function to read all Excel files from input_raw
- * and generate schema JSON files.
+ * Supported file extensions for plain-text documents.
+ * These are read verbatim and wrapped in an agent-friendly JSON envelope.
+ */
+const TEXT_EXTENSIONS = new Set([
+  ".md",
+  ".markdown",
+  ".txt",
+  ".rst",
+  ".csv",
+  ".tsv",
+  ".log",
+]);
+
+/**
+ * Supported file extensions for Excel workbooks.
+ */
+const EXCEL_EXTENSIONS = new Set([".xlsx", ".xls"]);
+
+/**
+ * Reads a plain-text file and writes an agent-friendly JSON envelope alongside.
+ * Returns the path to the generated JSON file.
+ */
+async function processTextFile(
+  filePath: string,
+  outputDir: string
+): Promise<string> {
+  const content = await fs.readFile(filePath, "utf-8");
+  const baseName = path.basename(filePath, path.extname(filePath));
+  const outputPath = path.join(outputDir, `${baseName}-document.json`);
+
+  const envelope = {
+    type: "document",
+    fileName: path.basename(filePath),
+    filePath: filePath,
+    format: path.extname(filePath).replace(".", ""),
+    content: content,
+  };
+
+  await fs.mkdir(path.dirname(outputPath), { recursive: true });
+  await fs.writeFile(outputPath, JSON.stringify(envelope, null, 2), "utf-8");
+  return outputPath;
+}
+
+/**
+ * Finds a file by name within a directory tree.
+ * Returns the first matching absolute path, or null if not found.
+ */
+async function findFileByName(
+  dirPath: string,
+  targetName: string
+): Promise<string | null> {
+  const allFiles = await getAllFiles(dirPath);
+  const matches = allFiles.filter(
+    (f) => path.basename(f) === targetName
+  );
+  return matches.length > 0 ? matches[0] : null;
+}
+
+/**
+ * Main preprocessing function. Reads Excel files (and optionally plain-text
+ * documents) from inputDir, generates schema JSON files in outputDir.
  *
- * @param inputDir - The directory containing raw files (e.g., './input_raw')
- * @param outputDir - The directory to save generated schemas (e.g., './output_schemas')
+ * When `targetFiles` is provided, only those file names are searched for and
+ * processed. Otherwise all supported files in inputDir are processed.
+ *
+ * @param inputDir    - The directory containing raw files (e.g., './input_raw')
+ * @param outputDir   - The directory to save generated schemas (e.g., './output_schemas')
+ * @param targetFiles - Optional list of specific file names to process
+ * @returns Array of absolute paths to the generated schema/document JSON files
  */
 export async function dataPreprocess(
   inputDir: string,
-  outputDir: string
+  outputDir: string,
+  targetFiles?: string[]
 ): Promise<string[]> {
-  console.log(`[INFO] Starting preprocessing for directory: ${inputDir}`);
-  let schemasPath: string[] = [];
+  const schemasPath: string[] = [];
 
   try {
-    // 1. Ensure the output directory exists
     await fs.mkdir(outputDir, { recursive: true });
 
-    // 2. Retrieve all file paths recursively
-    const allFiles = await getAllFiles(inputDir);
+    // Determine which files to process
+    let filesToProcess: string[];
 
-    // 3. Filter for Excel files (.xlsx and .xls)
-    const excelFiles = allFiles.filter((file) => {
-      const ext = path.extname(file).toLowerCase();
-      return ext === ".xlsx" || ext === ".xls";
-    });
+    if (targetFiles && targetFiles.length > 0) {
+      // --add mode: find specific files by name
+      console.log(
+        `[INFO] Looking for ${targetFiles.length} specified file(s) in: ${inputDir}`
+      );
+      const resolved: string[] = [];
+      for (const name of targetFiles) {
+        const found = await findFileByName(inputDir, name);
+        if (found) {
+          resolved.push(found);
+          console.log(`[INFO]   Found: ${name} → ${found}`);
+        } else {
+          console.warn(`[WARN]   Not found: ${name}`);
+        }
+      }
+      filesToProcess = resolved;
+    } else {
+      // Full scan: all supported files
+      console.log(`[INFO] Starting preprocessing for directory: ${inputDir}`);
+      const allFiles = await getAllFiles(inputDir);
+      filesToProcess = allFiles.filter((f) => {
+        const ext = path.extname(f).toLowerCase();
+        return EXCEL_EXTENSIONS.has(ext) || TEXT_EXTENSIONS.has(ext);
+      });
+    }
 
-    if (excelFiles.length === 0) {
-      console.log("[INFO] No Excel files found in the input directory.");
+    if (filesToProcess.length === 0) {
+      console.log("[INFO] No supported files found to process.");
       return [];
     }
 
-    console.log(`[INFO] Found ${excelFiles.length} Excel files. Processing...`);
+    console.log(`[INFO] Found ${filesToProcess.length} file(s). Processing...`);
 
-    // 4. Process each Excel file in parallel
-    const processingPromises = excelFiles.map(async (filePath) => {
+    // Process each file in parallel
+    const processingPromises = filesToProcess.map(async (filePath) => {
       try {
-        // Construct the output file path
-        // Strategy: Flatten output (all JSONs in the root of outputDir)
-        // Example: report.xlsx -> report-schema.json
-        const fileName = path.basename(filePath, path.extname(filePath));
-        const outputJsonPath = path.join(outputDir, `${fileName}-schema.json`);
-        schemasPath.push(outputJsonPath);
+        const ext = path.extname(filePath).toLowerCase();
+        const baseName = path.basename(filePath, ext);
 
-        // Alternative Strategy: Preserve directory structure
-        // Uncomment the following lines if you have duplicate filenames in different subfolders
-        /*
-        const relativePath = path.relative(inputDir, filePath);
-        const relativeDir = path.dirname(relativePath);
-        const outputJsonPath = path.join(outputDir, relativeDir, `${fileName}-schema.json`);
-        await fs.mkdir(path.dirname(outputJsonPath), { recursive: true });
-        */
+        if (EXCEL_EXTENSIONS.has(ext)) {
+          const outputJsonPath = path.join(outputDir, `${baseName}-schema.json`);
+          await parseExcelSchemaToFile(filePath, outputJsonPath);
+          console.log(`[INFO]   Excel schema: ${outputJsonPath}`);
+          return { file: filePath, output: outputJsonPath, status: "success" };
+        } else if (TEXT_EXTENSIONS.has(ext)) {
+          const outputJsonPath = await processTextFile(filePath, outputDir);
+          console.log(`[INFO]   Text document: ${outputJsonPath}`);
+          return { file: filePath, output: outputJsonPath, status: "success" };
+        }
 
-        console.log(`[INFO] Processing: ${filePath}`);
-
-        // Call the existing schema parsing function
-        await parseExcelSchemaToFile(filePath, outputJsonPath);
-
-        console.log(`[INFO] Success: ${outputJsonPath}`);
-        return { file: filePath, status: "success" };
+        return { file: filePath, output: "", status: "skipped" };
       } catch (error) {
         console.error(`[ERROR] Failed to process ${filePath}:`, error);
-        return { file: filePath, status: "failed", error };
+        return { file: filePath, output: "", status: "failed", error };
       }
     });
 
-    // Wait for all tasks to complete
     const results = await Promise.all(processingPromises);
 
-    // 5. Summarize results
+    // Collect output paths from successful runs
+    for (const r of results) {
+      if (r.status === "success" && r.output) {
+        schemasPath.push(r.output);
+      }
+    }
+
+    // Summarize
     const successCount = results.filter((r) => r.status === "success").length;
     const failCount = results.filter((r) => r.status === "failed").length;
+    const skipCount = results.filter((r) => r.status === "skipped").length;
 
-    console.log(`\n🎉 Preprocessing Complete.`);
+    console.log(`\n[INFO] Preprocessing Complete.`);
     console.log(`   Total: ${results.length}`);
     console.log(`   Success: ${successCount}`);
     console.log(`   Failed: ${failCount}`);
+    if (skipCount > 0) console.log(`   Skipped: ${skipCount}`);
   } catch (error) {
-    console.error("💥 Critical error during preprocessing:", error);
+    console.error("[ERROR] Critical error during preprocessing:", error);
     throw error;
   }
   return schemasPath;

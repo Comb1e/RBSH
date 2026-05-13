@@ -74,7 +74,15 @@ export interface SkillMetadata {
   func: string[];
 }
 
+// Generator
 export interface GeneratorEvaluatorLoopCompletion {
   content: string;
   toolSummarization?: ToolAnalysisResult[]; //ToolAnalysisResult[]
+}
+
+// Plan
+export interface PlanResult {
+  planPath: string;
+  worktype: string;
+  addFiles?: string[];
 }

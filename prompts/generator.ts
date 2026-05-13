@@ -9,7 +9,9 @@ export async function createGeneratorBaseMessage(
   artifact: HandoffArtifact,
   background: string,
   inputSchemaDescription: string,
-  evaluationStr: string
+  evaluationStr: string,
+  plan?: string,
+  outputDir?: string
 ): Promise<AgentMessage[]> {
   const basicSkills = await readFilesFromRecord(generatorBase);
   const systemPrompt = `
@@ -20,12 +22,20 @@ export async function createGeneratorBaseMessage(
   You will get scores for your task from 0-4, 4 is perfect.
   Notice the output format!!!
 
+  === OUTPUT DIRECTORY ===
+  Write ALL files to this directory: ${outputDir || "./output"}
+  Every file path you pass to createFileWithDirectories MUST start with this
+  directory. Do not write files anywhere else.
+
   === BACKGROUND ===
   ${background}
 
   === Input Schemas ===
   There are excel sheets with the following columns:
   ${inputSchemaDescription}
+
+  === PROJECT PLAN ===
+  ${plan || "(no plan provided)"}
     `.trim();
 
   const userPrompt = `

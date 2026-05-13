@@ -105,7 +105,7 @@ export async function readFile(args: ReadFileArgs): Promise<ReadFileResult> {
   }
 }
 
-export const readFileTool: ToolDefinition = {
+export const readFileToolDefinition: ToolDefinition = {
   name: "readFile",
   description:
     "Reads file content within a line range to optimize context, or lists directory structure.",

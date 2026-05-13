@@ -132,24 +132,39 @@ export type ExtractionResult = z.infer<typeof ExtractionResultSchema>;
 
 /**
  * Parses a JSON string containing spreadsheet analysis data into a typed object.
+ * Returns a safe fallback on any parse or validation error rather than throwing,
+ * so downstream agents always receive a usable ExtractionResult.
+ *
  * @param jsonString - The raw JSON string to parse.
- * @returns The parsed and validated ExtractionResult object.
- * @throws {z.ZodError} If the JSON is invalid or does not match the schema.
+ * @returns A validated ExtractionResult, or a safe fallback on error.
  */
 export function extractSpreadsheetAnalysis(
   jsonString: string
 ): ExtractionResult {
   try {
-    // First, parse the JSON string into a generic object
     const rawData = JSON.parse(jsonString);
-
-    // Then, validate and transform it using Zod
     return ExtractionResultSchema.parse(rawData);
   } catch (error) {
-    if (error instanceof SyntaxError) {
-      throw new Error(`Invalid JSON format: ${error.message}`);
-    }
-    // Re-throw Zod errors or any other unexpected errors
-    throw error;
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn("[WARN] Comprehension parse/validation failed:", message);
+    console.warn("[WARN] Raw comprehension output (first 500 chars):", jsonString.slice(0, 500));
+    return {
+      coreProblem: {
+        goal: "Unparseable — comprehension output was malformed",
+        outputDetail: "unknown",
+        constraints: [],
+        userRequirements: [],
+        assumptions: [
+          {
+            topic: "comprehension",
+            assumed:
+              "Comprehension step produced unparseable output; proceeding with raw schema context. Error: " +
+              message.slice(0, 120),
+          },
+        ],
+      },
+      sheets: [],
+      crossSheetRelationships: [],
+    };
   }
 }

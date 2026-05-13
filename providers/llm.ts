@@ -1,6 +1,5 @@
 import { env } from "../config/env.js";
 import { OpenAIProvider } from "../providers/openai.js";
-import { AnthropicProvider } from "../providers/anthropic.js";
 import { LLMProvider } from "@/types/index.js";
 
 /**
@@ -11,9 +10,6 @@ export function createProvider(): LLMProvider {
   switch (env.LLM_PROVIDER) {
     case "openai":
       return new OpenAIProvider();
-
-    case "anthropic":
-      return new AnthropicProvider();
 
     default:
       throw new Error(`Unsupported LLM provider: ${env.LLM_PROVIDER}`);

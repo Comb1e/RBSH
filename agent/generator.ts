@@ -19,7 +19,9 @@ export async function runGenerator(
   artifact: HandoffArtifact,
   background: string,
   inputSchemaDescription: string,
-  evaluationStr: string
+  evaluationStr: string,
+  plan: string,
+  outputDir?: string
 ): Promise<AgentCompletionResult> {
   console.log("\n╔══════════════════════════════╗");
   console.log(
@@ -33,7 +35,9 @@ export async function runGenerator(
     artifact,
     background,
     inputSchemaDescription,
-    evaluationStr
+    evaluationStr,
+    plan,
+    outputDir
   );
   const result = await runAgent(
     provider,
