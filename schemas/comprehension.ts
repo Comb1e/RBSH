@@ -125,10 +125,15 @@ const ExtractionResultSchema = z.object({
   coreProblem: CoreProblemSchema,
   sheets: z.array(SheetSchema).optional(),
   crossSheetRelationships: z.array(CrossSheetRelationshipSchema).optional(),
+  isFallback: z.boolean().optional().default(false),
 });
 
-// Infer the TypeScript type from the schema
 export type ExtractionResult = z.infer<typeof ExtractionResultSchema>;
+
+/** Returns true when the comprehension result is a safe fallback (parse failed). */
+export function isComprehensionFallback(r: ExtractionResult): boolean {
+  return r.isFallback === true;
+}
 
 /**
  * Parses a JSON string containing spreadsheet analysis data into a typed object.
@@ -165,6 +170,7 @@ export function extractSpreadsheetAnalysis(
       },
       sheets: [],
       crossSheetRelationships: [],
+      isFallback: true,
     };
   }
 }

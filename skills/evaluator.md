@@ -43,9 +43,9 @@ The generator's output follows a two-part format. Parse both parts before invest
 
 ### Part 1 — SUMMARIZATION block (structured claims)
 
-Fenced by exactly three backticks: ` ```SUMMARIZATION ` ... ` ``` `
+Wrapped in XML tags: `<SUMMARIZATION>` ... `</SUMMARIZATION>` (case-insensitive).
 
-Inside: one raw JSON object per tool invocation the generator made. Each object has:
+Inside: a valid JSON array with one object per tool invocation the generator made. Each object has:
 
 | Field | Description |
 |---|---|
@@ -69,7 +69,7 @@ Inside: one raw JSON object per tool invocation the generator made. Each object 
 
 ### Part 2 — TASK_COMPLETE block (plain-text summary)
 
-Fenced by exactly three backticks: ` ```TASK_COMPLETE ` ... ` ``` `
+Wrapped in XML tags: `<TASK_COMPLETE>` ... `</TASK_COMPLETE>` (case-insensitive).
 
 Inside: a short plain-text description of what the generator did — file names, directories, key actions. Use this as your starting checklist for investigation.
 
@@ -281,10 +281,10 @@ Any of these triggers automatic failure regardless of other scores. Flag as `[CR
 
 ### Output format
 
-Wrap the entire evaluation inside a ` ```TASK_COMPLETE ` block:
+Wrap the entire evaluation inside XML tags:
 
-````
-```TASK_COMPLETE
+```
+<TASK_COMPLETE>
 ## Task Type
 [types]
 
@@ -301,15 +301,15 @@ Wrap the entire evaluation inside a ` ```TASK_COMPLETE ` block:
 
 ## Overall Score
 [X.X / 4.0] -- [Pass / Fail]
+</TASK_COMPLETE>
 ```
-````
 
 **If Pass:** end after `## Overall Score`. Do not add Strengths, Weaknesses, or Evaluator Notes.
 
 **If Fail:** append after `## Overall Score`, still inside the TASK_COMPLETE block:
 
-````
-```TASK_COMPLETE
+```
+<TASK_COMPLETE>
 ...
 ## Overall Score
 X.X / 4.0 -- Fail
@@ -322,12 +322,12 @@ X.X / 4.0 -- Fail
 
 ## Evaluator Notes
 [Unverifiable items, omitted dimensions and why, other caveats]
+</TASK_COMPLETE>
 ```
-````
 
 ### Format rules (critical for harness parsing)
 
-- **Exactly three backticks** on `TASK_COMPLETE` fences — wrong count = parse failure
+- Use `<TASK_COMPLETE>` and `</TASK_COMPLETE>` XML tags (case-insensitive)
 - `## Overall Score` must appear exactly as: `## Overall Score\nX.X / 4.0 -- Pass` or `## Overall Score\nX.X / 4.0 -- Fail`
 - The score number and Pass/Fail keyword must be present for the harness to extract them
 - No extra text between `## Overall Score` and the score line
@@ -376,7 +376,7 @@ Implement JWT authentication middleware for the Express app.
 ## Output to Evaluate
 The agent produced the following output:
 ```
-```SUMMARIZATION
+<SUMMARIZATION>
 {
   "tool": "write_file",
   "purpose": "Write the JWT authentication middleware.",
@@ -398,10 +398,10 @@ The agent produced the following output:
     }
   ]
 }
-```
-```TASK_COMPLETE
+</SUMMARIZATION>
+<TASK_COMPLETE>
 Created auth middleware at /src/middleware/auth.js and registered it in /src/app.js.
-```
+</TASK_COMPLETE>
 ```
 
 ## Prior Context (Completed Steps)
@@ -417,7 +417,7 @@ No prior steps were completed before this tool use.
 **Evaluation:**
 
 ````
-```TASK_COMPLETE
+<TASK_COMPLETE>
 ## Task Type
 Code / Implementation, Multi-step / Agentic
 
@@ -452,7 +452,7 @@ Read auth.js (stub only, no JWT logic) and app.js (correct registration); SUMMAR
 
 ## Evaluator Notes
 Context continuity omitted (no prior context). Sequence coherence omitted (single action). This is a clear case of SUMMARIZATION claims not matching file contents.
-```
+</TASK_COMPLETE>
 ````
 
 ---
@@ -468,7 +468,7 @@ Build a CLI tool that reads a CSV file and prints a summary of each column.
 ## Output to Evaluate
 The agent produced the following output:
 ```
-```SUMMARIZATION
+<SUMMARIZATION>
 {
   "tool": "write_file",
   "purpose": "Write column type detection module.",
@@ -511,10 +511,10 @@ The agent produced the following output:
     }
   ]
 }
-```
-```TASK_COMPLETE
+</SUMMARIZATION>
+<TASK_COMPLETE>
 Created utils.py and summarize.py in src/; all 4 tests pass.
-```
+</TASK_COMPLETE>
 ```
 
 ## Prior Context (Completed Steps)
@@ -531,7 +531,7 @@ Step 1: Created main.py with argparse setup to accept --file flag and load CSV v
 **Evaluation:**
 
 ````
-```TASK_COMPLETE
+<TASK_COMPLETE>
 ## Task Type
 Code / Implementation, Multi-step / Agentic
 
@@ -557,7 +557,7 @@ None
 
 ## Overall Score
 3.9 / 4.0 -- Pass
-```
+</TASK_COMPLETE>
 ````
 
 ---
@@ -573,7 +573,7 @@ Join the sales and returns tables to compute net revenue per product.
 ## Output to Evaluate
 The agent produced the following output:
 ```
-```SUMMARIZATION
+<SUMMARIZATION>
 {
   "tool": "write_file",
   "purpose": "Write net revenue computation.",
@@ -595,10 +595,10 @@ The agent produced the following output:
     }
   ]
 }
-```
-```TASK_COMPLETE
+</SUMMARIZATION>
+<TASK_COMPLETE>
 Created net_revenue.py in src/ with INNER JOIN on product_id.
-```
+</TASK_COMPLETE>
 ```
 
 ## Prior Context (Completed Steps)
@@ -618,7 +618,7 @@ Cross-sheet: relationshipType "reference", note "returns.product_id is a subset 
 **Evaluation:**
 
 ````
-```TASK_COMPLETE
+<TASK_COMPLETE>
 ## Task Type
 Code / Implementation, Multi-step / Agentic
 
@@ -651,5 +651,5 @@ Read net_revenue.py; uses INNER JOIN despite schema explicitly requiring LEFT JO
 
 ## Evaluator Notes
 Context continuity omitted (no prior context). Schema caveat was explicit — this is a same-name column conflation error the generator should have caught.
-```
+</TASK_COMPLETE>
 ````

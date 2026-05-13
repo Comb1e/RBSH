@@ -1,10 +1,10 @@
 import { z } from "zod";
 
-export interface ToolDefinition<T extends z.ZodType = any> {
+export interface ToolDefinition<T extends z.ZodType<any> = any> {
   name: string;
   description: string;
   schema: T;
-  execute: (args: z.infer<T>) => Promise<any>;
+  execute: (args: z.infer<T>) => Promise<unknown>;
 }
 
 export interface UnifiedToolResult {
@@ -14,13 +14,6 @@ export interface UnifiedToolResult {
   toolDescription: string;
   status: "success" | "error";
   result: unknown;
-}
-
-export interface UnifiedTool {
-  name: string;
-  description: string;
-  parameters: Record<string, any>; // JSON Schema
-  execute: (args: Record<string, any>) => Promise<any>;
 }
 
 export type ToolRegistry = Record<string, ToolDefinition>;

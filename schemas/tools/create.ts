@@ -17,16 +17,27 @@ const bufferEncodingSchema = z.enum([
 export const createFileWithDirectoriesSchema = z.object({
   filePath: z
     .string()
-    .describe("Absolute or relative path to the target file."),
-  content: z.string().describe("Content to write. Use Base64 for binary data."),
+    .min(1)
+    .refine((p) => !p.includes(".."), "Path must not contain '..' segments")
+    .refine((p) => !p.startsWith("/") && !p.match(/^[A-Za-z]:/), "Path must be relative")
+    .describe("Relative path to the target file (within the output directory)."),
+  content: z.string().describe("Content to write. Prefix with 'base64:' for binary data."),
   options: z
     .object({
-      overwrite: z.boolean().optional(),
+      overwrite: z.boolean().optional().default(true),
       encoding: bufferEncodingSchema
         .default("utf8")
         .describe("File encoding, e.g., 'utf8'."),
-      mode: z.number().optional().describe("File permissions, e.g., '0o644'."),
+      mode: z
+        .number()
+        .int()
+        .min(0)
+        .max(0o777)
+        .optional()
+        .default(0o644)
+        .describe("File permissions (0-777)."),
     })
     .optional()
+    .default({})
     .describe("Optional configuration flags."),
 });

@@ -154,12 +154,12 @@ When `TASK` is fully satisfied, write the completion signal **in the assistant m
 
 **Part 1 — Summarization** (detailed tool invocation summaries):
 
-> ⚠️ **Must begin with ` ```SUMMARIZATION ` and end with ` ``` ` — exactly three backticks each.**
-> A trailing newline after the closing ` ``` ` is legal. Any deviation prevents harness parsing.
+> ⚠️ **Wrap in XML tags: `<SUMMARIZATION>` (opening) and `</SUMMARIZATION>` (closing).**
+> The tag is case-insensitive: `<summarization>` is also accepted.
 
-Inside, write one **raw JSON object per tool invocation**, directly one after another — no markers, no prose.
+Inside, write a **valid JSON array** containing one object per tool invocation.
 
-Each JSON object (`ToolAnalysisResultSchema`):
+Each object in the array follows `ToolAnalysisResultSchema`:
 
 - `tool` — **actual tool name as invoked**
 - `purpose` — one sentence: what this invocation did
@@ -191,35 +191,47 @@ Each JSON object (`ToolAnalysisResultSchema`):
 > signature you describe. File paths must be accurate. Claims that don't match the
 > files on disk will trigger a Critical Failure and automatic rejection.
 
-**Format:**
+**Format — valid JSON array:**
 
-````
-```SUMMARIZATION
-{ ... }
-{ ... }
-````
+```
+<SUMMARIZATION>
+[
+  {
+    "tool": "...",
+    "purpose": "...",
+    "request": "...",
+    "code_summary": [ ... ]
+  },
+  {
+    "tool": "...",
+    "purpose": "...",
+    "request": "...",
+    "text_summary": { "overview": "...", "key_points": [...], "conclusion": "..." }
+  }
+]
+</SUMMARIZATION>
+```
 
-````
+If only one tool was used, still wrap it in an array: `[{ ... }]`.
 
 **Part 2 — Task completion note** (brief, human-readable):
 
-> ⚠️ **Must begin with ` ```TASK_COMPLETE ` and end with ` ``` ` — exactly three backticks each.**
+> ⚠️ **Wrap in XML tags: `<TASK_COMPLETE>` (opening) and `</TASK_COMPLETE>` (closing).**
+> Case-insensitive: `<task_complete>` is also accepted.
 
 Inside, write a short plain-text description of what the generator did in this task — a few words per action, e.g. which files were created and where.
 
 **Format:**
-````
 
-```TASK_COMPLETE
+```
+<TASK_COMPLETE>
 Created loader.py and cleaner.py in src/; wrote remote_work_report.md in docs/
+</TASK_COMPLETE>
 ```
 
-````
-
 **Signal rules (both parts):**
-- Both fences use exactly three backticks. Wrong count = parse failure.
-- `SUMMARIZATION` contains only raw JSON objects — no markers, no prose.
-- `TASK_COMPLETE` contains only a short plain-text description — no JSON.
+- `<SUMMARIZATION>` contains a valid JSON array — no prose, no extra markers.
+- `<TASK_COMPLETE>` contains only a short plain-text description — no JSON.
 - Omit optional JSON fields; do not set to `null`. Empty arrays → `[]`. Unknown types → `"unknown"`.
 - Do not call any tool in the same response.
 - Do not emit unless `TASK` is genuinely complete — premature signal halts the pipeline.
@@ -265,7 +277,7 @@ Required sections (in order): **Title & Badges** (`# Name` + italic tagline) →
 
 1. **TASK** — What does it require in full?
 2. **Remaining steps** — Note for lookahead only; confirm zero `[TODO]` items implemented.
-3. **Completion** — Does this iteration fully satisfy `TASK`? If yes → emit `SUMMARIZATION` fence (JSON) + `TASK_COMPLETE` fence (brief plain text), no tool call.
+3. **Completion** — Does this iteration fully satisfy `TASK`? If yes → emit `<SUMMARIZATION>` (JSON array) + `<TASK_COMPLETE>` (brief plain text), no tool call.
 4. **Schema** — If present, run Section 3 planning.
 5. **Tool + language** — Which harness tool? What type parameter? (Section 1 logic.)
 6. **Variable glossary** — Assign canonical names before writing.
@@ -355,52 +367,54 @@ def column_with_highest_mean(filepath: str | Path) -> str:
 
 **Assistant message (no tool calls):**
 
-```SUMMARIZATION
-{
-  "tool": "write_file",
-  "purpose": "Write the CSV loading module for the CLI.",
-  "request": "Create loader.py with load_csv() as specified in TASK.",
-  "code_summary": [
-    {
-      "file": { "file_name": "loader.py", "relative_path": "loader.py", "summary": "CSV loading module." },
-      "apis": [
-        {
-          "name": "load_csv",
-          "description": "Reads a CSV file and returns its rows as a list of dicts.",
-          "parameters": [{ "name": "filepath", "type": "str | Path", "description": "Path to the CSV file." }],
-          "returns": {
-            "type": "list",
-            "description": "Parsed rows.",
-            "items": { "type": "dict", "description": "Row with string keys and string values." }
-          },
-          "visibility": "public"
-        }
+<SUMMARIZATION>
+[
+  {
+    "tool": "write_file",
+    "purpose": "Write the CSV loading module for the CLI.",
+    "request": "Create loader.py with load_csv() as specified in TASK.",
+    "code_summary": [
+      {
+        "file": { "file_name": "loader.py", "relative_path": "loader.py", "summary": "CSV loading module." },
+        "apis": [
+          {
+            "name": "load_csv",
+            "description": "Reads a CSV file and returns its rows as a list of dicts.",
+            "parameters": [{ "name": "filepath", "type": "str | Path", "description": "Path to the CSV file." }],
+            "returns": {
+              "type": "list",
+              "description": "Parsed rows.",
+              "items": { "type": "dict", "description": "Row with string keys and string values." }
+            },
+            "visibility": "public"
+          }
+        ],
+        "variables": [],
+        "classes": []
+      }
+    ]
+  },
+  {
+    "tool": "create_document",
+    "purpose": "Write the research report on remote work productivity.",
+    "request": "Produce a structured markdown report as specified in TASK.",
+    "text_summary": {
+      "overview": "The report argues that remote work structurally improves productivity through commute elimination, environment control, and autonomy-driven engagement, supported by empirical evidence.",
+      "key_points": [
+        "Commute elimination reclaims ~1 hour/day for focused work.",
+        "Stanford study: 13% productivity lift among remote workers.",
+        "Schedule autonomy increases discretionary effort per self-determination theory.",
+        "Collaboration concerns are addressable via async tooling and off-hours norms."
       ],
-      "variables": [],
-      "classes": []
+      "conclusion": "Remote work's gains are structural — organisations that adopt it remove friction from their most valuable resource."
     }
-  ]
-}
-{
-  "tool": "create_document",
-  "purpose": "Write the research report on remote work productivity.",
-  "request": "Produce a structured markdown report as specified in TASK.",
-  "text_summary": {
-    "overview": "The report argues that remote work structurally improves productivity through commute elimination, environment control, and autonomy-driven engagement, supported by empirical evidence.",
-    "key_points": [
-      "Commute elimination reclaims ~1 hour/day for focused work.",
-      "Stanford study: 13% productivity lift among remote workers.",
-      "Schedule autonomy increases discretionary effort per self-determination theory.",
-      "Collaboration concerns are addressable via async tooling and off-hours norms."
-    ],
-    "conclusion": "Remote work's gains are structural — organisations that adopt it remove friction from their most valuable resource."
   }
-}
-```
+]
+</SUMMARIZATION>
 
-```TASK_COMPLETE
+<TASK_COMPLETE>
 Created loader.py in src/; wrote remote_work_report.md in docs/
-```
+</TASK_COMPLETE>
 
 ---
 
@@ -416,13 +430,13 @@ Created loader.py in src/; wrote remote_work_report.md in docs/
 | Same-name column conflation                      | Compare `meaning` before any join                                              |
 | Silent INNER JOIN on subset relationship         | Default to LEFT JOIN                                                           |
 | Ignoring non-empty `caveats`                     | Every caveat must be handled or documented                                     |
-| Premature completion signal                      | Evaluate `TASK` directly; emit both fences only when genuinely done            |
-| Missing completion signal when done              | Always emit `SUMMARIZATION` + `TASK_COMPLETE` when `TASK` is satisfied         |
-| Tool call used for completion signal             | Both fences are plain assistant text — no tool                                 |
-| Wrong backtick count on either fence             | Exactly three backticks on each delimiter                                      |
-| JSON in `TASK_COMPLETE` fence                    | `TASK_COMPLETE` contains plain text only — JSON goes in `SUMMARIZATION`        |
-| Plain text or prose in `SUMMARIZATION` fence     | `SUMMARIZATION` contains only raw JSON objects                                 |
-| Multiple invocations merged into one object      | One JSON object per tool call in `SUMMARIZATION`                               |
+| Premature completion signal                      | Evaluate `TASK` directly; emit both tags only when genuinely done            |
+| Missing completion signal when done              | Always emit `<SUMMARIZATION>` + `<TASK_COMPLETE>` when `TASK` is satisfied     |
+| Tool call used for completion signal             | Both tags are plain assistant text — no tool                                   |
+| Missing or mismatched XML tags                   | Use `<SUMMARIZATION>...</SUMMARIZATION>` and `<TASK_COMPLETE>...</TASK_COMPLETE>` |
+| JSON in `<TASK_COMPLETE>` block                  | `<TASK_COMPLETE>` contains plain text only — JSON goes in `<SUMMARIZATION>`    |
+| Plain text or prose in `<SUMMARIZATION>` block   | `<SUMMARIZATION>` contains only a valid JSON array                             |
+| Multiple invocations merged into one object      | One JSON object per tool call in the `<SUMMARIZATION>` JSON array              |
 | Wrong result variant                             | `code_summary` for code, `text_summary` for prose, `result` for config/data    |
 | `code_summary` wrapped in `{ files: [...] }`     | `code_summary` is a direct array of file objects                               |
 | Collapsing known return structure                | Use correct variant: `fields` for dict, `items` for list, `elements` for tuple |
@@ -434,7 +448,7 @@ Created loader.py in src/; wrote remote_work_report.md in docs/
 
 - [ ] **`TASK` fully understood — this drives every decision**
 - [ ] **Zero `[TODO]` items from `REMAINING STEPS` implemented**
-- [ ] **`TASK` complete? → emit `SUMMARIZATION` (JSON objects) + `TASK_COMPLETE` (brief plain text), no tool call**
+- [ ] **`TASK` complete? → emit `<SUMMARIZATION>...</SUMMARIZATION>` (JSON array) + `<TASK_COMPLETE>...</TASK_COMPLETE>` (brief plain text), no tool call**
 - [ ] `COMPLETED STEPS` + `REUSABLE CODE` audited — nothing redone
 - [ ] `KEY INFORMATION` used verbatim
 - [ ] Schema: `meaning` compared for same-name columns; caveats handled; LEFT JOIN default

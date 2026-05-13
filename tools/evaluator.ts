@@ -1,6 +1,6 @@
-import { ToolDefinition } from "@/types/index.js";
-import { readFileToolDefinition } from "./scripts/index.js";
+import { ToolRegistry } from "@/types/index.js";
+import { commonTools } from "./tools.js";
 
-export const evaluatorToolRegistry: Record<string, ToolDefinition> = {
-  readFile: readFileToolDefinition,
+export const evaluatorToolRegistry: ToolRegistry = {
+  ...commonTools,
 };

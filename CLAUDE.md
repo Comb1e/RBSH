@@ -37,7 +37,7 @@ Each step iterates up to `AGENT_MAX_ITERATIONS` times. The Generator produces a 
 
 ### Agent runtime (`agent/agent.ts`)
 
-`runAgent()` is the shared agent loop used by Generator, Evaluator, and Modifier. It calls the LLM, executes any tool calls returned, feeds tool results back, and repeats until the agent emits a `TASK_COMPLETE` signal or hits `AGENT_MAX_ITERATIONS`. The task-complete signal contains `SUMMARIZATION` (JSON describing tool invocations) and `TASK_COMPLETE` (plain-text summary).
+`runAgent()` is the shared agent loop used by Generator, Evaluator, and Modifier. It calls the LLM, executes any tool calls returned, feeds tool results back, and repeats until the agent emits a `TASK_COMPLETE` signal or hits `AGENT_MAX_ITERATIONS`. The task-complete signal contains `<SUMMARIZATION>` (JSON array describing tool invocations) and `<TASK_COMPLETE>` (plain-text summary) XML tags.
 
 ### LLM provider (`providers/`)
 
@@ -58,11 +58,13 @@ Tool schemas live in `schemas/tools/`. `tools/tools.ts` handles generic tool exe
 
 ### Output format contract
 
-The Generator emits two fenced blocks when done:
-- ```` ```SUMMARIZATION ```` — raw JSON objects (one per tool call) describing what was created
-- ```` ```TASK_COMPLETE ```` — brief plain-text summary
+The Generator emits two XML-tagged blocks when done:
+- `<SUMMARIZATION>[...]</SUMMARIZATION>` — valid JSON array (one object per tool call) describing what was created
+- `<TASK_COMPLETE>...</TASK_COMPLETE>` — brief plain-text summary
 
-The Evaluator emits a `TASK_COMPLETE` block containing `## Overall Score` with a number and `Pass`/`Fail` keyword. `extractOverallScore()` regex-parses this to drive the loop.
+The Evaluator and Modifier emit a `<TASK_COMPLETE>...</TASK_COMPLETE>` block. The Evaluator's contains `## Overall Score` with a number and `Pass`/`Fail` keyword. `extractOverallScore()` regex-parses this to drive the loop.
+
+Extraction regexes in `utils/output.ts` match XML tags case-insensitively: `/<TASK_COMPLETE>([\s\S]*?)<\/TASK_COMPLETE>/i`.
 
 The Planner emits `<PLAN_DOCUMENT>` with `<FILENAME>` and `<MARKDOWN>` child tags. `plannerParseResponse()` extracts these; `writePlanFile()` sanitizes the filename and writes to disk.
 

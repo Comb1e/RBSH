@@ -130,7 +130,7 @@ Before writing any output, reason through these steps internally:
 5. **Apply the change**: Make only the identified edits. Leave everything else untouched.
 6. **Reconstruct the full plan**: Output all four sections in order, modified where needed, verbatim
    elsewhere.
-7. **Append the TASK_COMPLETE block**: After the final timeline row, write the `TASK_COMPLETE` fenced
+7. **Append the TASK_COMPLETE block**: After the final timeline row, write the `<TASK_COMPLETE>...</TASK_COMPLETE>`
    block as specified in the Output Contract. Do not skip this step.
 
 ---
@@ -165,21 +165,21 @@ Every response must contain exactly two parts, in this order:
 
 ### Part 2 — TASK_COMPLETE Block
 
-Immediately after Part 1, output a fenced code block labelled `TASK_COMPLETE`. It must match this
-regex exactly: ` /```TASK_COMPLETE([\s\S]*?)```/ `
+Immediately after Part 1, wrap your summary in XML tags. The harness extracts content matching:
+`<TASK_COMPLETE>...</TASK_COMPLETE>` (case-insensitive).
 
 The block body summarises what was done. Use this template:
 
-````
-```TASK_COMPLETE
+```
+<TASK_COMPLETE>
 Command   : <verbatim copy of the user's command>
 Sections  : <comma-separated list of section numbers changed, e.g. "2, 3">
 Changes   :
   - <one bullet per discrete edit made, e.g. "Added Redis row (Caching) to Section 2">
   - <if a constraint was silently enforced, list it here, e.g. "Kept minimum 4 modules (dropped Analytics only)">
 Integrity : <"n/a" if no renames/removals; otherwise list every Depends On or timeline cell updated>
+</TASK_COMPLETE>
 ```
-````
 
 **Rules for the TASK_COMPLETE block:**
 

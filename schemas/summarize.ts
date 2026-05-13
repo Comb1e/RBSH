@@ -1,4 +1,3 @@
-import { parse } from "path";
 import { z } from "zod";
 
 const ParameterSchema = z.object({
@@ -92,25 +91,78 @@ export const ToolAnalysisResultSchema = z.object({
 export type ToolAnalysisResult = z.infer<typeof ToolAnalysisResultSchema>;
 
 export function parseMultipleToolResults(input: string): ToolAnalysisResult[] {
-  const results: ToolAnalysisResult[] = [];
+  const trimmed = input.trim();
+  if (!trimmed) return [];
 
-  const parsedArray = JSON.parse(input);
-  if (Array.isArray(parsedArray)) {
-    for (const item of parsedArray) {
-      const validItem = ToolAnalysisResultSchema.safeParse(item);
-      if (validItem.success) {
-        results.push(validItem.data);
-      } else {
-        console.warn("Failed to validate array item:", validItem.error);
+  // Strategy 1: Valid JSON array [{...}, {...}] — the canonical format
+  try {
+    const parsed = JSON.parse(trimmed);
+    if (Array.isArray(parsed)) {
+      const results: ToolAnalysisResult[] = [];
+      for (const item of parsed) {
+        const valid = ToolAnalysisResultSchema.safeParse(item);
+        if (valid.success) {
+          results.push(valid.data);
+        } else {
+          console.warn(
+            "[WARN] SUMMARIZATION array item failed validation:",
+            valid.error.issues.slice(0, 3)
+          );
+        }
+      }
+      if (results.length > 0) return results;
+    } else {
+      // Single JSON object
+      const valid = ToolAnalysisResultSchema.safeParse(parsed);
+      if (valid.success) return [valid.data];
+    }
+  } catch {
+    // Not valid JSON — fall through to other strategies
+  }
+
+  // Strategy 2: NDJSON (one complete JSON object per line)
+  try {
+    const lines = trimmed.split("\n").filter((l) => l.trim());
+    const results: ToolAnalysisResult[] = [];
+    for (const line of lines) {
+      try {
+        const obj = JSON.parse(line);
+        const valid = ToolAnalysisResultSchema.safeParse(obj);
+        if (valid.success) results.push(valid.data);
+      } catch {
+        // skip unparseable lines
       }
     }
-    return results;
+    if (results.length > 0) return results;
+  } catch {
+    // ignore
   }
-  const item = ToolAnalysisResultSchema.safeParse(parsedArray);
-  if (item.success) {
-    results.push(item.data);
-  } else {
-    console.warn("Failed to validate array item:", item.error);
+
+  // Strategy 3: Concatenated objects {..}{..} (old broken format)
+  // Split on "}\n{" or "}{" boundaries and try each chunk
+  try {
+    const chunks = trimmed.split(/}\s*\{/);
+    const results: ToolAnalysisResult[] = [];
+    for (let i = 0; i < chunks.length; i++) {
+      let chunk = chunks[i];
+      if (i > 0) chunk = "{" + chunk;
+      if (i < chunks.length - 1) chunk = chunk + "}";
+      try {
+        const obj = JSON.parse(chunk);
+        const valid = ToolAnalysisResultSchema.safeParse(obj);
+        if (valid.success) results.push(valid.data);
+      } catch {
+        // skip unparseable chunks
+      }
+    }
+    if (results.length > 0) return results;
+  } catch {
+    // ignore
   }
-  return results;
+
+  console.warn(
+    "[WARN] Could not parse any SUMMARIZATION objects from input (first 200 chars):",
+    trimmed.slice(0, 200)
+  );
+  return [];
 }

@@ -1,10 +1,12 @@
-import { ToolDefinition } from "@/types/index.js";
+import { ToolRegistry } from "@/types/index.js";
+import { commonTools } from "./tools.js";
 import {
   commandToolDefinition,
-  readFileToolDefinition,
+  createFileWithDirectoriesTool,
 } from "./scripts/index.js";
 
-export const modifierToolRegistry: Record<string, ToolDefinition> = {
+export const modifierToolRegistry: ToolRegistry = {
+  ...commonTools,
   executeCommand: commandToolDefinition,
-  readFile: readFileToolDefinition,
+  createFileWithDirectories: createFileWithDirectoriesTool,
 };

@@ -5,9 +5,17 @@ import { z } from "zod";
 // ─────────────────────────────────────────────────────────────────────────────
 export const ReadFileArgsSchema = z.object({
   action: z.enum(["read_file", "list_dir"]).optional().default("read_file"),
-  filePath: z.string().min(1, "File path must not be empty"),
+  filePath: z
+    .string()
+    .min(1, "File path must not be empty")
+    .refine((p) => !p.includes(".."), "Path must not contain '..' segments"),
   startLine: z.number().int().positive().optional(),
-  endLine: z.number().int().positive().optional(),
+  endLine: z
+    .number()
+    .int()
+    .positive()
+    .max(10000, "endLine must be ≤ 10000 for context safety")
+    .optional(),
 });
 
 export type ReadFileArgs = z.infer<typeof ReadFileArgsSchema>;

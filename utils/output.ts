@@ -269,36 +269,32 @@ export async function extractMarkdownAndSave(text: string): Promise<string[]> {
 }
 
 /**
- * Extracts the content inside ```task-complete``` blocks from a given string.
- *
- * @param input - The input string containing one or more task-complete blocks.
- * @returns An array of strings, each representing the content extracted from a block.
+ * Extracts the content inside <TASK_COMPLETE>...</TASK_COMPLETE> XML tags.
+ * Case-insensitive. Also tolerates leading/trailing whitespace around the content.
  */
 export function extractTaskCompleteContent(input: string): string | null {
-  // Regex explanation:
-  // ```TASK_COMPLETE\n : Matches the opening fence specifically for task-complete
-  // ([\s\S]*?)       : Captures any character (including newlines) non-greedily
-  // \n````            : Matches the closing fence
-  const regex = /```TASK_COMPLETE([\s\S]*?)```/;
-
+  const regex = /<TASK_COMPLETE>\s*([\s\S]*?)\s*<\/TASK_COMPLETE>/i;
   const match = input.match(regex);
 
   if (match && match[1] !== undefined) {
-    return match[1];
+    return match[1].trim();
   }
-  console.log("[INFO] No task compeletion messages found.", match);
+  console.log("[INFO] No <TASK_COMPLETE> block found.");
   return null;
 }
 
+/**
+ * Extracts the content inside <SUMMARIZATION>...</SUMMARIZATION> XML tags.
+ * Case-insensitive. Also tolerates leading/trailing whitespace around the content.
+ */
 export function extractSummarizationContent(input: string): string | null {
-  const regex = /```SUMMARIZATION([\s\S]*?)```/;
-
+  const regex = /<SUMMARIZATION>\s*([\s\S]*?)\s*<\/SUMMARIZATION>/i;
   const match = input.match(regex);
 
   if (match && match[1] !== undefined) {
-    return match[1];
+    return match[1].trim();
   }
-  console.log("[INFO] No summarizations found.", match);
+  console.log("[INFO] No <SUMMARIZATION> block found.");
   return null;
 }
 
@@ -308,7 +304,12 @@ export function serializeResult(result: unknown): string {
 
   if (typeof result === "string") return result;
 
-  return JSON.stringify(result);
+  try {
+    return JSON.stringify(result);
+  } catch {
+    // Handle circular references and other non-serializable values
+    return String(result);
+  }
 }
 
 /**
@@ -343,7 +344,6 @@ export function extractOverallScore(text: string): ScoreExtractionResult {
   const match = text.match(regex);
 
   if (!match) {
-    console.log(match);
     return {
       score: 0,
       status: "Fail",

@@ -20,10 +20,12 @@ export async function readFilesFromRecord(
   fileMap: Record<string, string[]>
 ): Promise<string[]> {
   const entries = Object.entries(fileMap);
-  // Create a flat array of promises for all files
   const promises = entries.flatMap(([key, values]) => {
     return values.map((value) => {
-      const filePath = path.join(__dirname, key, value);
+      // Reject path traversal in key or value segments
+      const safeKey = path.basename(key);
+      const safeValue = path.basename(value);
+      const filePath = path.join(__dirname, safeKey, safeValue);
       return getFile(filePath);
     });
   });

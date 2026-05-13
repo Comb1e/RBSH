@@ -5,18 +5,25 @@ import * as readline from "node:readline";
 import type { ReadFileArgs, ReadFileResult } from "@/schemas/index.js";
 import { ReadFileArgsSchema, ReadFileResultSchema } from "@/schemas/index.js";
 import type { ToolDefinition } from "@/types/index.js";
+import { env } from "../../config/env.js";
+
+/** File reads are restricted to paths within the project directory. */
+const PROJECT_ROOT = path.resolve(".");
 
 // ─────────────────────────────────────────────────────────────────────────────
-// STANDALONE EXECUTION FUNCTION
-// ─────────────────────────────────────────────────────────────────────────────
-/**
- * Reads file content within a specified line range or lists directory structure.
- * Uses streaming to prevent memory/context overflow on large files.
- * Returns a strictly typed result conforming to ReadFileResultSchema.
- */
+
 export async function readFile(args: ReadFileArgs): Promise<ReadFileResult> {
   try {
     const resolvedPath = path.resolve(args.filePath);
+
+    // Path traversal protection
+    if (!resolvedPath.startsWith(PROJECT_ROOT + path.sep) && resolvedPath !== PROJECT_ROOT) {
+      return {
+        success: false,
+        error: `Path traversal denied: "${args.filePath}" resolves outside project directory.`,
+        code: "EPERM",
+      };
+    }
 
     // ─── DIRECTORY LISTING ───────────────────────────────────────────────
     if (args.action === "list_dir") {
@@ -45,9 +52,8 @@ export async function readFile(args: ReadFileArgs): Promise<ReadFileResult> {
       throw new Error(`Path is not a regular file: ${resolvedPath}`);
     }
 
-    // Context protection: default to 1000 lines if no range is provided
     const start = args.startLine ?? 1;
-    const end = args.endLine ?? start + 999;
+    const end = args.endLine ?? Math.min(start + 999, start + 2000); // bound max range
 
     if (start > end) {
       throw new Error("startLine cannot be greater than endLine");
@@ -56,24 +62,25 @@ export async function readFile(args: ReadFileArgs): Promise<ReadFileResult> {
     const lines: string[] = [];
     let currentLine = 0;
 
-    // Memory-efficient streaming via readline (O(1) memory footprint)
     const fileStream = fs.createReadStream(resolvedPath, { encoding: "utf8" });
     const rl = readline.createInterface({
       input: fileStream,
       crlfDelay: Infinity,
     });
 
-    for await (const line of rl) {
-      currentLine++;
-      if (currentLine > end) break;
-      if (currentLine >= start) {
-        lines.push(line);
+    try {
+      for await (const line of rl) {
+        currentLine++;
+        if (currentLine > end) break;
+        if (currentLine >= start) {
+          lines.push(line);
+        }
       }
+    } finally {
+      // Always close resources, even on iteration error
+      rl.close();
+      fileStream.destroy();
     }
-
-    // Explicit resource cleanup
-    rl.close();
-    fileStream.destroy();
 
     const reachedEOF = currentLine < end;
     const usedDefaults = !args.startLine && !args.endLine;
@@ -99,22 +106,20 @@ export async function readFile(args: ReadFileArgs): Promise<ReadFileResult> {
       success: false,
       error: err.message || "Unknown error occurred during file operation",
       code: err.code,
-      // Only expose stack traces in development environments
-      stack: process.env.NODE_ENV === "development" ? err.stack : undefined,
+      stack: env.NODE_ENV === "development" ? err.stack : undefined,
     };
   }
 }
 
-export const readFileToolDefinition: ToolDefinition = {
+export const readFileToolDefinition: ToolDefinition<typeof ReadFileArgsSchema> = {
   name: "readFile",
   description:
     "Reads file content within a line range to optimize context, or lists directory structure.",
   schema: ReadFileArgsSchema,
-  execute: async (args) => {
+  execute: async (args: ReadFileArgs) => {
     const result = await readFile(args);
 
-    // Optional: Validate output in development
-    if (process.env.NODE_ENV === "development") {
+    if (env.NODE_ENV === "development") {
       ReadFileResultSchema.parse(result);
     }
 

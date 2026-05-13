@@ -5,6 +5,15 @@ import {
   UnifiedToolResult,
 } from "@/types/index.js";
 import { zodToJsonSchema } from "zod-to-json-schema";
+import { readFileToolDefinition } from "./scripts/index.js";
+
+/** Maximum allowed size for a single tool call argument string (1MB). */
+const MAX_ARG_SIZE = 1024 * 1024;
+
+/** Tools available to every agent role. */
+export const commonTools: ToolRegistry = {
+  readFile: readFileToolDefinition,
+};
 
 export function generateToolsFromRegistry(
   toolRegistry: ToolRegistry
@@ -47,16 +56,26 @@ export async function handleToolExecution(
       }
 
       try {
-        let args: any;
+        // Input size guard
+        if (call.argStr.length > MAX_ARG_SIZE) {
+          throw new Error(
+            `Tool call arguments exceed ${MAX_ARG_SIZE} byte limit`
+          );
+        }
+
+        let rawArgs: unknown;
         try {
-          args = JSON.parse(call.argStr);
+          rawArgs = JSON.parse(call.argStr);
         } catch {
           throw new Error(`Invalid JSON in argStr for ${call.name}`);
         }
 
-        const validatedArgs = toolDef.schema?.parse
-          ? toolDef.schema.parse(args)
-          : args;
+        // Schema validation is required — fail if tool has no schema
+        if (!toolDef.schema) {
+          throw new Error(`Tool "${call.name}" is missing a validation schema`);
+        }
+        const validatedArgs = toolDef.schema.parse(rawArgs);
+
         const output = await toolDef.execute(validatedArgs);
 
         return {
@@ -80,10 +99,16 @@ export async function handleToolExecution(
     })
   );
 
-  return results
-    .filter(
-      (r): r is PromiseFulfilledResult<UnifiedToolResult> =>
-        r.status === "fulfilled"
-    )
-    .map((r) => r.value);
+  const fulfilled: UnifiedToolResult[] = [];
+  for (const r of results) {
+    if (r.status === "fulfilled") {
+      fulfilled.push(r.value);
+    } else {
+      console.error(
+        "[ERROR] Tool execution promise rejected unexpectedly:",
+        r.reason
+      );
+    }
+  }
+  return fulfilled;
 }

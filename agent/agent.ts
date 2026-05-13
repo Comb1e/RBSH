@@ -6,7 +6,7 @@ import type {
   ToolDefinition,
 } from "@/types/index.js";
 import { env } from "../config/env.js";
-import { generatorToolRegistry, handleToolExecution } from "@/tools/index.js";
+import { handleToolExecution } from "@/tools/index.js";
 import {
   extractTaskCompleteContent,
   extractSummarizationContent,
@@ -28,7 +28,7 @@ export async function runAgent(
     // Call Agent
     const completion = await provider.complete(
       agentMessages,
-      generatorToolRegistry
+      toolRegistry
     );
     agentMessages = completion.messages;
     const content = completion.content;
@@ -58,14 +58,19 @@ export async function runAgent(
           `[TOOL ${res.status.toUpperCase()}] ${res.name}:`,
           res.status === "success" ? "OK" : res.result
         );
-        if (res.status === "success") {
-          const toolUseStr: string = `
+        const toolUseStr: string =
+          res.status === "success"
+            ? `
             --- Tool Used: ${res.name} ---
             Input: ${res.argStr}
             Output: ${serializeResult(res.result)}
+            `.trim()
+            : `
+            --- Tool Failed: ${res.name} ---
+            Input: ${res.argStr}
+            Error: ${serializeResult(res.result)}
             `.trim();
-          evaluatorUseStr.push(toolUseStr);
-        }
+        evaluatorUseStr.push(toolUseStr);
       });
     } else if (content == "") {
       console.log(`[WARN] ${role} returned empty content; retrying...`);
@@ -76,22 +81,32 @@ export async function runAgent(
       completion.content
     );
     if (ifComplete) {
-      const ifToolCalls: string | null = extractSummarizationContent(
-        completion.content
-      );
-      if (ifToolCalls) {
-        const summarization = parseMultipleToolResults(ifToolCalls);
-        console.log(`\n[INFO] ${role} task completed.`);
-        summarizeResults.push(...summarization);
-        return {
-          content: JSON.stringify(evaluatorUseStr),
-          toolSummarization: summarizeResults,
-        };
-      } else {
-        console.log(`\n[INFO] ${role} task completed without tool calls.`);
+      try {
+        const ifToolCalls: string | null = extractSummarizationContent(
+          completion.content
+        );
+        if (ifToolCalls) {
+          const summarization = parseMultipleToolResults(ifToolCalls);
+          console.log(
+            `\n[INFO] ${role} task completed (${summarization.length} tool summary(s)).`
+          );
+          summarizeResults.push(...summarization);
+          return {
+            content: JSON.stringify(evaluatorUseStr),
+            toolSummarization: summarizeResults,
+          };
+        } else {
+          console.log(`\n[INFO] ${role} task completed without tool calls.`);
+          return { content: JSON.stringify(ifComplete) };
+        }
+      } catch (error) {
+        console.warn(
+          `[WARN] ${role} SUMMARIZATION extraction failed, treating as plain completion:`,
+          (error as Error).message
+        );
         return { content: JSON.stringify(ifComplete) };
-      } // should be ifComplete}
+      }
     }
   }
-  return { content: "[ERROR] Task do not complete in max_iteration." };
+  return { content: "[ERROR] Task did not complete within max iterations." };
 }

@@ -20,7 +20,7 @@ export interface ScoreExtractionResult {
 }
 
 export interface UnifiedAgentOptions {
-  provider: "openai" | "anthropic"; // Dynamically select LLM provider
+  provider: "openai"; // Dynamically select LLM provider
   model: string; // Override default model for this call
   tools?: string[]; // Allowlist of tool names to enable
   taskBudget?: number; // Max tokens for this task
