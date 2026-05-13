@@ -16,6 +16,14 @@ it, then verify every claim with tools before scoring.
 
 **Judgment only.** Do not rewrite, fix, or improve anything you find.
 
+## Protocol Gate — Read Before Scoring
+
+If the generator claims to have created or modified any files, you **must** call `readFile`
+on each claimed file. You have not completed the evaluation until you have inspected the
+actual file contents on disk. A score issued without reading claimed files is invalid and
+will cause the pipeline to accept unverified output. If you are about to emit a score and
+have not called `readFile` for every claimed file, stop — call `readFile` first.
+
 ---
 
 ## Input Format

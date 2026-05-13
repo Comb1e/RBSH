@@ -1,7 +1,7 @@
 import type { AgentMessage } from "@/types/index.js";
 import { readFilesFromRecord } from "@/utils/get_params.js";
 
-const plannerBase = {
+const modifierBase = {
   skills: ["modifier.md"],
 };
 
@@ -9,7 +9,7 @@ export async function getModifierBaseMessage(
   modificationRequest: string,
   existingPlanLocation: string
 ): Promise<AgentMessage[]> {
-  const basicSkills = await readFilesFromRecord(plannerBase);
+  const basicSkills = await readFilesFromRecord(modifierBase);
 
   const systemPrompt = `
   You are a Plan Modifier Agent. Your sole responsibility is to take an existing structured project plan and apply targeted modifications requested by the user — without altering sections that are not affected by the request.

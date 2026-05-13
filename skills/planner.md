@@ -57,8 +57,7 @@ SECTION REQUIREMENTS
 **Key Components**: bulleted list of files / classes / sub-systems
 **Depends On**: comma-separated module names, or "None" - Include at minimum 4 modules.
 One module must be the unified entry point (e.g. `main.py`, `main.ts`) that ties all
-other modules together. In the Implementation Order, this entry point must come after
-all modules it depends on.
+other modules together (see Project Requirements).
 
 • "## 4. Development Timeline" - A Markdown table with columns: | Phase | Scope | Deliverables |
 The final phase MUST include `README.md` as a deliverable.
@@ -68,11 +67,10 @@ The final phase MUST include `README.md` as a deliverable.
   `<number>. \`relative/path/filename\` — one-sentence description of what this file does`
   Rules:
   - Every file listed in any module's Key Components must appear here.
-  - The unified entry point must be near the end, after all its dependencies.
+  - The unified entry point and README.md must follow the ordering rules in Project Requirements.
   - The second-to-last item must be a final output or summary file (e.g.
     `output/final_report.md`) that consolidates results. The harness
     displays this as FINAL OUTPUT on the console.
-  - README.md must be the very last item.
   - Dependency order is strict: if file B imports file A, A must come before B.
   - Minimum 4 items. If the project is trivial, list at least the entry point,
     one supporting module, a final output, and README.md.

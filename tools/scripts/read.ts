@@ -53,7 +53,7 @@ export async function readFile(args: ReadFileArgs): Promise<ReadFileResult> {
     }
 
     const start = args.startLine ?? 1;
-    const end = args.endLine ?? Math.min(start + 999, start + 2000); // bound max range
+    const end = args.endLine ?? Math.min(start + 999, 2000); // bound max range at line 2000
 
     if (start > end) {
       throw new Error("startLine cannot be greater than endLine");

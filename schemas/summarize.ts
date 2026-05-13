@@ -28,15 +28,6 @@ const ElementSchema = z.object({
   fields: z.array(FieldSchema).optional(),
 });
 
-// Combine them using discriminatedUnion on the 'type' field
-export const ReturnsSchema = z.object({
-  type: z.string(),
-  description: z.string(),
-  elements: z.array(ElementSchema).optional(),
-  items: ItemSchema.optional(),
-});
-
-// returns can be a plain string description OR a structured type object
 const ReturnsValueSchema = z.union([
   z.string(),
   z.object({

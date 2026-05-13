@@ -133,11 +133,20 @@ function buildSheetSchema(
 
     const types = sampledRows.map((row) => inferCellType(row ? row[c] : null));
 
+    // Collect deduplicated example values (up to 5)
+    const seen = new Set<string>();
+    const examples: string[] = [];
+    for (const v of cellValues) {
+      const s = String(truncateValue(v, maxValueLength));
+      if (!seen.has(s)) { seen.add(s); examples.push(s); if (examples.length >= 5) break; }
+    }
+
     columns.push({
       columnLetter: columnIndexToLetter(c),
       headerName,
       inferredType: mergeTypes(types),
       isAlwaysEmpty: cellValues.length === 0,
+      examples,
     });
   }
 

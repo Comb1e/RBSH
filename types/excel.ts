@@ -32,6 +32,8 @@ export interface ColumnSchema {
   inferredType: InferredType;
   /** True when every sampled cell in this column is empty */
   isAlwaysEmpty: boolean;
+  /** Up to 5 deduplicated example values from sampled rows */
+  examples: string[];
 }
 
 export interface SheetSchema {

@@ -1,197 +1,280 @@
 import * as path from "path";
 import { createProvider } from "./providers/llm.js";
-import { runGenerator, runHarness, plan } from "@/agent/index.js";
+import { runGenerator, runHarness, plan, runExplainer } from "@/agent/index.js";
 import { dataPreprocess, readFilesFromList, input } from "@/utils/index.js";
-import type { PlanResult, HandoffArtifact } from "@/types/index.js";
+import type { PlanResult } from "@/types/index.js";
 
-// ---------------------------------------------------------------------------
-// Entry point
-// ---------------------------------------------------------------------------
 const INPUT_RAW_DIR = "./input_raw";
 const OUTPUT_SCHEMAS_DIR = "./output_schemas";
 const OUTPUT_DIR = "./output";
 
-/**
- * Derives a project output folder name from the plan file path.
- *   "./output/plan/my-project-plan.md"  →  "./output/my-project"
- *   "./output/plan/analysis.md"         →  "./output/analysis"
- */
-function deriveOutputDir(planPath: string): string {
-  const base = path.basename(planPath, path.extname(planPath)); // "my-project-plan"
-  const name = base.endsWith("-plan") ? base.slice(0, -5) : base; // "my-project"
+// ── CLI argument types ──────────────────────────────────────────────────────
+
+type Command = "plan" | "execute" | "generate";
+
+interface CliArgs {
+  command: Command;
+  projectName?: string;
+  addFiles: string[];
+}
+
+const VALID_COMMANDS: readonly Command[] = ["plan", "execute", "generate"];
+
+// ── CLI parsing ────────────────────────────────────────────────────────────
+
+function parseCliArgs(raw: string[]): CliArgs {
+  const addFiles: string[] = [];
+  const positional: string[] = [];
+
+  let i = 0;
+  while (i < raw.length) {
+    if (raw[i] === "--add") {
+      i++;
+      while (i < raw.length && !raw[i].startsWith("--")) {
+        addFiles.push(raw[i++]);
+      }
+    } else {
+      positional.push(raw[i++]);
+    }
+  }
+
+  const command = (positional[0] || "plan") as Command;
+  const projectName: string | undefined = positional[1];
+
+  if (!(VALID_COMMANDS as readonly string[]).includes(command)) {
+    throw new Error(
+      `Unknown command: "${command}". Valid commands: ${VALID_COMMANDS.join(
+        ", "
+      )}.`
+    );
+  }
+
+  if ((command === "execute" || command === "generate") && !projectName) {
+    throw new Error(
+      `The "${command}" command requires a project name.\n` +
+        `Usage: npx tsx main.ts ${command} <project-name> [--add file.xlsx ...]`
+    );
+  }
+
+  return { command, projectName, addFiles };
+}
+
+// ── helpers ─────────────────────────────────────────────────────────────────
+
+function projectDirFromName(name: string): string {
   return path.join(OUTPUT_DIR, name);
 }
 
+function planPathIn(projectDir: string): string {
+  return path.join(projectDir, "plan.md");
+}
+
+async function resolveSchemaDescription(
+  projectDir: string,
+  inputSchemas: string[]
+): Promise<string> {
+  try {
+    const sc = await readFilesFromList([path.join(projectDir, "schema.md")]);
+    if (sc[0]) return sc[0];
+  } catch {
+    /* fall back to raw schemas */
+  }
+  return JSON.stringify(inputSchemas);
+}
+
+async function addFiles(
+  names: string[],
+  existing: string[]
+): Promise<string[]> {
+  if (names.length === 0) return existing;
+  const newPaths = await dataPreprocess(
+    INPUT_RAW_DIR,
+    OUTPUT_SCHEMAS_DIR,
+    names
+  );
+  const contents = await readFilesFromList(newPaths);
+  console.log(
+    `[INFO] Added ${contents.length} file(s). Total: ${
+      existing.length + contents.length
+    }`
+  );
+  return [...existing, ...contents];
+}
+
+// ── REPL state ──────────────────────────────────────────────────────────────
+
+interface ReplState {
+  workType: string;
+  planPath: string;
+  projectDir: string;
+  modifyTarget: string;
+  inputSchemas: string[];
+}
+
+// ── main ────────────────────────────────────────────────────────────────────
+
 async function main() {
-  // 0. Parse CLI arguments
-  const args = process.argv.slice(2);
+  const cli = parseCliArgs(process.argv.slice(2));
 
-  let workType: string = "plan";
-  const cliAddFiles: string[] = [];
-  let planPath: string = "";
+  // Initialize state from CLI
+  const state: ReplState = {
+    workType: cli.command,
+    planPath: "",
+    projectDir: cli.projectName ? projectDirFromName(cli.projectName) : "",
+    modifyTarget: "",
+    inputSchemas: [],
+  };
 
-  const addFlagIdx = args.indexOf("--add");
-  if (addFlagIdx !== -1) {
-    let i = addFlagIdx + 1;
-    while (i < args.length && !args[i].startsWith("-")) {
-      cliAddFiles.push(args[i]);
-      i++;
-    }
-    args.splice(addFlagIdx, i - addFlagIdx);
-    workType = args[0] || "plan";
-  } else {
-    workType = args[0] || "plan";
+  if (state.projectDir) {
+    state.planPath = planPathIn(state.projectDir);
+    console.log(`[INFO] Project: ${state.projectDir}`);
   }
 
-  // If excute/generate is given a plan filename, resolve it now
-  if ((workType === "excute" || workType === "generate") && args[1]) {
-    planPath = path.join(OUTPUT_DIR, "plan", args[1]);
-    if (!planPath.endsWith(".md")) planPath += ".md";
-    console.log(`[INFO] Plan file: ${planPath}`);
-  }
-
-  // 1. Create provider
   const provider = createProvider();
-  console.log("[INFO] LLM provider created.");
+  state.inputSchemas = await addFiles(cli.addFiles, []);
 
-  // 2. Only preprocess files when --add is specified at the CLI
-  let inputSchemas: string[] = [];
+  // ── REPL loop ──────────────────────────────────────────────────────────
 
-  if (cliAddFiles.length > 0) {
-    console.log(`[INFO] Adding files: ${cliAddFiles.join(", ")}`);
-    const newPaths = await dataPreprocess(
-      INPUT_RAW_DIR,
-      OUTPUT_SCHEMAS_DIR,
-      cliAddFiles
-    );
-    inputSchemas = await readFilesFromList(newPaths);
-    console.log(
-      `[INFO] Loaded ${inputSchemas.length} schema(s) from added files.`
-    );
-  }
+  while (state.workType !== "quit") {
+    try {
+      switch (state.workType) {
+        // ── reset ──────────────────────────────────────────────────────
+        case "new":
+          state.planPath = "";
+          state.projectDir = "";
+          state.modifyTarget = "";
+          state.workType = "plan";
+          break;
 
-  while (workType !== "quit") {
-    switch (workType) {
-      case "new": {
-        console.log("[INFO] Starting new plan...");
-        workType = "plan";
-        break;
-      }
-      case "plan": {
-        if (inputSchemas.length === 0) {
-          console.log(
-            "[INFO] No input files loaded. Use --add to include Excel or text files."
-          );
-        }
-        const planResult: PlanResult = await plan(
-          provider,
-          JSON.stringify(inputSchemas)
-        );
-        workType = planResult.worktype;
-        console.log("[INFO] Switching to:", workType);
-        planPath = planResult.planPath;
-
-        // If add command came from REPL with file names, process inline
-        if (
-          workType === "add" &&
-          planResult.addFiles &&
-          planResult.addFiles.length > 0
-        ) {
-          const addFiles = planResult.addFiles;
-          console.log(`[INFO] Adding files: ${addFiles.join(", ")}`);
-          const newPaths = await dataPreprocess(
-            INPUT_RAW_DIR,
-            OUTPUT_SCHEMAS_DIR,
-            addFiles
-          );
-          const newContents = await readFilesFromList(newPaths);
-          inputSchemas.push(...newContents);
-          console.log(
-            `[INFO] Added ${newContents.length} file(s). Total schemas: ${inputSchemas.length}`
-          );
-          workType = "plan"; // back to plan mode
-        }
-        break;
-      }
-      case "excute": {
-        console.log("[INFO] Starting agent harness...");
-        if (planPath === "") {
-          console.warn("[WARN] No plan available; run 'plan' first.");
-          workType = "quit";
-        } else {
-          const outputDir = deriveOutputDir(planPath);
-          await runHarness(provider, planPath, inputSchemas, outputDir);
-          workType = "quit";
-        }
-        break;
-      }
-      case "generate": {
-        console.log("[INFO] Starting generation...");
-        if (planPath === "") {
-          console.warn("[WARN] No plan available; run 'plan' first.");
-          workType = "quit";
-        } else {
-          const outputDir = deriveOutputDir(planPath);
-          const planContents = await readFilesFromList([planPath]);
-          const artifactPlan = planContents[0];
-          const artifact: HandoffArtifact = {
-            task: artifactPlan,
-            completedSteps: [],
-            remainingSteps: [],
-            preToolSummarize: [],
-            iterationCount: 0,
-          };
-          await runGenerator(
+        // ── plan / modify ─────────────────────────────────────────────
+        case "plan":
+        case "modify": {
+          const prevWorkType = state.workType;
+          const result: PlanResult = await plan(
             provider,
-            artifact,
-            artifactPlan,
-            JSON.stringify(inputSchemas),
-            "",
-            artifactPlan,
-            outputDir
+            JSON.stringify(state.inputSchemas),
+            prevWorkType === "modify" ? "modify" : undefined,
+            prevWorkType === "modify" ? state.modifyTarget : undefined
           );
-          workType = "quit";
-        }
-        break;
-      }
-      case "add": {
-        // REPL "add" without file names — prompt interactively
-        console.log("[INFO] Adding new input file(s)...");
-        const raw = await input(
-          "Enter file name(s) from input_raw/ (space-separated): "
-        );
-        const names = raw
-          .split(/\s+/)
-          .map((s) => s.trim())
-          .filter(Boolean);
 
-        if (names.length === 0) {
-          console.log("[INFO] No file names entered.");
-        } else {
-          const newPaths = await dataPreprocess(
-            INPUT_RAW_DIR,
-            OUTPUT_SCHEMAS_DIR,
-            names
-          );
-          const newContents = await readFilesFromList(newPaths);
-          inputSchemas.push(...newContents);
-          console.log(
-            `[INFO] Added ${newContents.length} file(s). Total schemas: ${inputSchemas.length}`
-          );
+          state.workType = result.worktype;
+          state.planPath = result.planPath || state.planPath;
+          state.projectDir = result.projectDir || state.projectDir;
+
+          if (state.workType === "add" && result.addFiles?.length) {
+            state.inputSchemas = await addFiles(
+              result.addFiles,
+              state.inputSchemas
+            );
+            state.workType = prevWorkType === "modify" ? "modify" : "plan";
+          }
+          break;
         }
-        workType = "plan";
-        break;
+
+        // ── explain ───────────────────────────────────────────────────
+        case "explain": {
+          if (!state.projectDir) {
+            console.warn("[WARN] No project directory; run 'plan' first.");
+            state.workType = "plan";
+          } else {
+            const planContents = await readFilesFromList([state.planPath]);
+            const schemaPath = await runExplainer(
+              provider,
+              JSON.stringify(state.inputSchemas),
+              planContents[0] || "",
+              state.projectDir
+            );
+            if (schemaPath) {
+              state.modifyTarget = schemaPath;
+              console.log(`[INFO] Now modifying: ${schemaPath}`);
+            }
+            state.workType = "modify";
+          }
+          break;
+        }
+
+        // ── execute ───────────────────────────────────────────────────
+        case "execute": {
+          if (!state.planPath || !state.projectDir) {
+            console.warn("[WARN] No plan available.");
+            state.workType = "quit";
+          } else {
+            const schemaDescription = await resolveSchemaDescription(
+              state.projectDir,
+              state.inputSchemas
+            );
+            await runHarness(
+              provider,
+              state.planPath,
+              schemaDescription,
+              state.projectDir
+            );
+            state.workType = "quit";
+          }
+          break;
+        }
+
+        // ── generate ──────────────────────────────────────────────────
+        case "generate": {
+          if (!state.planPath || !state.projectDir) {
+            console.warn("[WARN] No plan available.");
+            state.workType = "quit";
+          } else {
+            const schemaDescription = await resolveSchemaDescription(
+              state.projectDir,
+              state.inputSchemas
+            );
+            const planContents = await readFilesFromList([state.planPath]);
+            const planText = planContents[0];
+            await runGenerator(
+              provider,
+              {
+                task: planText,
+                completedSteps: [],
+                remainingSteps: [],
+                preToolSummarize: [],
+                iterationCount: 0,
+              },
+              planText,
+              schemaDescription,
+              "",
+              planText,
+              state.projectDir
+            );
+            state.workType = "quit";
+          }
+          break;
+        }
+
+        // ── add ───────────────────────────────────────────────────────
+        case "add": {
+          const raw = await input("File name(s) from input_raw/: ");
+          const names = raw
+            .split(/\s+/)
+            .map((s) => s.trim())
+            .filter(Boolean);
+          if (names.length > 0) {
+            state.inputSchemas = await addFiles(names, state.inputSchemas);
+          }
+          state.workType = "plan";
+          break;
+        }
+
+        // ── quit ──────────────────────────────────────────────────────
+        case "quit":
+          return;
+
+        default:
+          state.workType = "quit";
       }
-      default: {
-        workType = "quit";
-        break;
-      }
+    } catch (err) {
+      console.error("[ERROR] Unexpected error:", err);
+      console.log(
+        "[INFO] Continuing REPL — type 'new' to restart or 'q' to quit."
+      );
+      state.workType = "plan";
     }
   }
 }
 
-main();
-//npx tsx main.ts plan
-//npx tsx main.ts excute power-system-economic-dispatch-plan.md
-//npx tsx main.ts --add report.xlsx notes.md
-//npx tsx main.ts --add data.xlsx plan
+await main();

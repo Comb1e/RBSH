@@ -1,4 +1,3 @@
-import { readFile } from "fs/promises";
 import fs from "fs/promises";
 import yaml from "js-yaml";
 import path from "path";
@@ -8,7 +7,7 @@ import { parseExcelSchemaToFile } from "./read_excel.js";
 
 export async function getFile(targetPath: string): Promise<string> {
   try {
-    return await readFile(targetPath, "utf-8");
+    return await fs.readFile(targetPath, "utf-8");
   } catch (error) {
     console.error("[ERROR] Read file error", (error as Error).message);
     console.error("[ERROR] Target path:", targetPath);

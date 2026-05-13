@@ -18,6 +18,13 @@ export async function getEvaluatorPrompt(
   === BASIC SKILLS ===
   ${basicSkills.join("\n\n")}
 
+  === MANDATORY VERIFICATION ===
+  If the generator's output mentions ANY files (created, modified, or referenced),
+  you MUST call readFile on EVERY claimed file before scoring. The generator's
+  claims are not evidence — only the file contents on disk are authoritative.
+  Scoring without reading files when files are claimed is an automatic protocol
+  violation and will cause the pipeline to accept broken output.
+
   === Background ===
   ${background}
 
@@ -32,15 +39,17 @@ export async function getEvaluatorPrompt(
   ${task}
 
   ## Output to Evaluate
-  The agent produced the following output:
+  The generator claims to have produced the following:
   \`\`\`
   ${output}
   \`\`\`
 
+  Verify every file claim with readFile before scoring.
+
   ## Prior Context (Completed Steps)
   ${
     preCodeSummarize.length > 0
-      ? `The following is a summary of code or content produced in earlier steps:\n${preCodeSummarize}`
+      ? `The following is a summary of code or content produced in earlier steps:\n${JSON.stringify(preCodeSummarize, null, 2)}`
       : "No prior steps were completed before this tool use."
   }
   `.trim();

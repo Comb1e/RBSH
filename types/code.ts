@@ -6,11 +6,6 @@ export interface CodeBlock {
   content: string;
 }
 
-export interface PathExtractionResult {
-  folder: string;
-  file: string;
-}
-
 export interface CodeUnifiedInfo {
   path: string;
   code: string;

@@ -13,7 +13,8 @@ import type {
   LLMProvider,
   ScoreExtractionResult,
   GeneratorEvaluatorLoopCompletion,
-} from "@/types//index.js";
+} from "@/types/index.js";
+import type { ToolAnalysisResult } from "@/schemas/index.js";
 import { env } from "../config/env.js";
 import {
   readFilesFromList,
@@ -29,12 +30,16 @@ async function generatorEvaluatorLoop(
   provider: LLMProvider,
   background: string,
   artifact: HandoffArtifact,
-  inputSchemaDescription: string,
+  schemaDescription: string,
   plan: string,
   outputDir: string
 ): Promise<GeneratorEvaluatorLoopCompletion> {
   let evaluationStr: string = "";
-  for (let iter = 1; iter <= env.AGENT_MAX_ITERATIONS; iter++) {
+  let bestDraft: string = "";
+  let bestToolSummarization: ToolAnalysisResult[] | undefined;
+  let bestScore = -1;
+
+  for (let iter = 1; iter <= env.GENERATOR_MAX_ITERATIONS; iter++) {
     artifact.iterationCount = iter;
 
     // --- Generate ---
@@ -42,7 +47,7 @@ async function generatorEvaluatorLoop(
       provider,
       artifact,
       background,
-      inputSchemaDescription,
+      schemaDescription,
       evaluationStr,
       plan,
       outputDir
@@ -56,7 +61,7 @@ async function generatorEvaluatorLoop(
       background,
       artifact.task,
       draft,
-      inputSchemaDescription,
+      schemaDescription,
       artifact.preToolSummarize
     );
 
@@ -65,30 +70,36 @@ async function generatorEvaluatorLoop(
     );
     console.log("\n");
     console.log(scoreResult);
+
+    // Track best attempt
+    if (scoreResult.score > bestScore) {
+      bestScore = scoreResult.score;
+      bestDraft = draft;
+      bestToolSummarization = toolSummarization;
+    }
+
     if (scoreResult.status === "Pass") {
       console.log("\n[INFO] Output accepted by evaluator.");
       return { content: draft, toolSummarization: toolSummarization };
     }
 
+    // Only feed back the most recent evaluation; summarize prior context
     evaluationStr = `
   --- Previous attempt (score ${scoreResult.score}) ---
-  ${draft}
-
-  --- Evaluation ---
   ${evaluation}
       `.trim();
 
-    if (iter < env.AGENT_MAX_ITERATIONS) {
+    if (iter < env.GENERATOR_MAX_ITERATIONS) {
       console.log(
-        `\n[WARN] Score below threshold. Retrying (${iter}/${env.AGENT_MAX_ITERATIONS})…`
+        `\n[WARN] Score below threshold. Retrying (${iter}/${env.GENERATOR_MAX_ITERATIONS})…`
       );
     }
   }
 
   console.warn(
-    `\n[WARN] Max iterations (${env.AGENT_MAX_ITERATIONS}) reached. Returning best attempt.`
+    `\n[WARN] Max iterations (${env.GENERATOR_MAX_ITERATIONS}) reached. Returning best attempt (score ${bestScore}).`
   );
-  return { content: evaluationStr, toolSummarization: [] };
+  return { content: bestDraft || evaluationStr, toolSummarization: bestToolSummarization || [] };
 }
 
 // ---------------------------------------------------------------------------
@@ -98,18 +109,17 @@ async function generatorEvaluatorLoop(
 export async function runHarness(
   provider: LLMProvider,
   planPath: string,
-  inputSchemas: string[],
+  schemaDescription: string,
   outputDir: string
 ): Promise<void> {
   console.log("═".repeat(60));
   console.log("RBSH");
   console.log("═".repeat(60));
 
-  // 0. Create the output directory
   await mkdir(outputDir, { recursive: true });
   console.log(`[INFO] Output directory: ${outputDir}`);
 
-  // 1. Read the plan (already incorporates schema comprehension)
+  // 1. Read the plan
   const planContents = await readFilesFromList([planPath]);
   const plan = planContents[0];
 
@@ -118,19 +128,14 @@ export async function runHarness(
     return;
   }
 
-  // 2. Extract steps from the plan's Module Division
+  // 2. Extract steps
   const steps = extractStepsFromPlan(plan);
   if (steps.length === 0) {
-    console.warn(
-      "[WARN] No module steps found in plan; falling back to single-step execution."
-    );
+    console.warn("[WARN] No steps found; falling back to single-step execution.");
     steps.push("Execute plan as single step");
   }
 
   console.log(`[INFO] Plan loaded. ${steps.length} step(s) to execute.`);
-
-  // 3. Raw schema description — the generator already has the plan for context
-  const inputSchemaDescription = JSON.stringify(inputSchemas);
 
   // 4. Build handoff artifact
   const artifact: HandoffArtifact = {
@@ -157,7 +162,7 @@ export async function runHarness(
         ...artifact,
         task: step,
       },
-      inputSchemaDescription,
+      schemaDescription,
       plan,
       outputDir
     );

@@ -78,7 +78,10 @@ export const createFileWithDirectoriesTool: ToolDefinition<
     const mode = args.options?.mode ?? 0o644;
     const overwrite = args.options?.overwrite ?? true;
 
-    return createFileWithDirectories(args.filePath, finalContent as any, {
+    return createFileWithDirectories(
+      args.filePath,
+      finalContent as string | Buffer,
+      {
       encoding,
       mode,
       overwrite,

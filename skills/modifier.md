@@ -1,7 +1,7 @@
 ---
 name: modifier-agent
 description: >
-  Use this skill when acting as a plan modifier agent — receiving a structured 4-section project plan
+  Use this skill when acting as a plan modifier agent — receiving a structured 5-section project plan
   and a user command, then returning the surgically edited plan with full structural integrity preserved.
   Trigger whenever the user provides a plan with sections like "Project Overview", "Technical Stack",
   "Module Division", and "Development Timeline", accompanied by an instruction to modify, update, add,
@@ -19,7 +19,7 @@ summary block so the caller can parse what changed.
 
 ## Plan Format
 
-Every plan you receive follows this exact 4-section structure:
+Every plan you receive follows this exact 5-section structure:
 
 ```
 ## 1. Project Overview
@@ -41,6 +41,13 @@ One ### sub-heading per module, each containing:
 ## 4. Development Timeline
 A Markdown table with columns:
 | Phase | Scope | Deliverables |
+
+## 5. Implementation Order
+A numbered list of concrete files to create, in dependency order.
+Each entry: `<number>. \`relative/path/filename\` — one-sentence description`
+- Files are listed in strict dependency order (if B imports A, A comes first).
+- The unified entry point must appear near the end, after its dependencies.
+- README.md must be the very last item.
 ```
 
 ---
@@ -55,7 +62,7 @@ The user's message will typically look like one of these patterns:
 
 **Parse the command first.** Identify:
 
-1. **What section(s)** are affected (Overview, Stack, Modules, Timeline, or cross-cutting).
+1. **What section(s)** are affected (Overview, Stack, Modules, Timeline, Implementation Order, or cross-cutting).
 2. **What action** is requested (add, remove, rename, replace, update, reorder).
 3. **What the minimal change is** that satisfies the request.
 
@@ -92,6 +99,7 @@ module's entire dependency list becomes empty after removal, write `None`.
 | Section 1 key features | 5–8 bullet items                                                       |
 | Section 2 rows         | Must include: Frontend, Backend, Database, Auth, DevOps/CI-CD, Testing |
 | Section 3 modules      | At least 4 `###` modules                                               |
+| Section 5 items         | At least 4 numbered file entries; README.md must be last                 |
 
 If a command would violate a constraint (e.g. "remove all modules"), apply the change as far as the
 constraint allows (keep the minimum required) without warning the user. Never explain the enforcement.
@@ -128,7 +136,7 @@ Before writing any output, reason through these steps internally:
 4. **Check referential integrity**: Does a rename or removal affect `**Depends On**` fields or
    timeline rows elsewhere?
 5. **Apply the change**: Make only the identified edits. Leave everything else untouched.
-6. **Reconstruct the full plan**: Output all four sections in order, modified where needed, verbatim
+6. **Reconstruct the full plan**: Output all five sections in order, modified where needed, verbatim
    elsewhere.
 7. **Append the TASK_COMPLETE block**: After the final timeline row, write the `<TASK_COMPLETE>...</TASK_COMPLETE>`
    block as specified in the Output Contract. Do not skip this step.
@@ -145,6 +153,8 @@ Before writing any output, reason through these steps internally:
 | `"Add a module for X"`             | Append a new `### X` block with all three required bold-label fields populated sensibly.                                           |
 | `"Remove module X"`                | Delete the `### X` block. Remove X from all `**Depends On**:` fields. Enforce 4-module minimum.                                    |
 | `"Add a phase for X"`              | Append a new row to the Section 4 table.                                                                                           |
+| `"Add a file to Implementation Order"` | Append a numbered entry to Section 5. Maintain correct dependency ordering.                                                    |
+| `"Reorder Implementation Order"`   | Re-number Section 5 entries preserving the dependency rules (entry point near end, README last).                                  |
 | `"Add feature X to the overview"`  | Append a bullet to the key-features list. Enforce 8-feature maximum (if already at 8, replace the least-related feature).          |
 | `"Remove feature X"`               | Remove that bullet. Enforce 5-feature minimum.                                                                                     |
 | `"Update the justification for X"` | Change only the Justification cell of that row.                                                                                    |
@@ -158,8 +168,8 @@ Every response must contain exactly two parts, in this order:
 ### Part 1 — The Modified Plan
 
 - **Starts with**: `## 1. Project Overview`
-- **Ends with**: the closing `|` of the last timeline table row
-- **Contains**: all four `##` sections in original order
+- **Ends with**: the last line of `## 5. Implementation Order`
+- **Contains**: all five `##` sections in original order
 - **Format**: raw Markdown — no code fences wrapping the plan, no HTML
 - **Length**: the full plan every time, regardless of how small the edit was
 

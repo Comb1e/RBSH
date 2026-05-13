@@ -8,13 +8,21 @@ import { getPlannerPrompt } from "@/prompts/index.js";
 import { env } from "../config/env.js";
 import { plannerParseResponse, writePlanFile } from "@/utils/index.js";
 
-const PLAN_OUTPUT_DIR = "./output/plan";
+/**
+ * Derives a project directory name from the plan filename.
+ *   "power-system-plan.md"  →  "power-system"
+ *   "analysis.md"           →  "analysis"
+ */
+export function projectNameFromPlan(filename: string): string {
+  const base = filename.replace(/\.md$/i, "");
+  return base.endsWith("-plan") ? base.slice(0, -5) : base;
+}
 
 export async function runPlanner(
   provider: LLMProvider,
   background: string,
   inputSchemaDescription: string
-): Promise<string> {
+): Promise<{ planPath: string; projectDir: string }> {
   console.log("\n╔══════════════════════════════╗");
   console.log("║  PLANNER AGENT               ║");
   console.log("╚══════════════════════════════╝\n");
@@ -24,9 +32,8 @@ export async function runPlanner(
     inputSchemaDescription
   );
 
-  // Planner needs no file-system tools — disable them all for minimum footprint
   let raw = "";
-  for (let iter = 1; iter <= env.AGENT_MAX_ITERATIONS; iter++) {
+  for (let iter = 1; iter <= env.PLANNER_MAX_ITERATIONS; iter++) {
     const completion = await provider.complete(unifiedPrompt, {});
     if (completion.content != "") {
       raw = completion.content;
@@ -38,21 +45,19 @@ export async function runPlanner(
     console.warn(
       "[ERROR] Planner failed to return any content; falling back to single-step plan."
     );
-    return "";
+    return { planPath: "", projectDir: "" };
   }
 
   try {
     const plan: ParsedPlan = plannerParseResponse(raw);
-    const planFilePath: string = writePlanFile(
-      plan.filename,
-      plan.markdown,
-      PLAN_OUTPUT_DIR
-    );
-    return planFilePath;
+    const projectName = projectNameFromPlan(plan.filename);
+    const projectDir = `./output/${projectName}`;
+    const planPath = writePlanFile("plan.md", plan.markdown, projectDir);
+    return { planPath, projectDir };
   } catch {
     console.warn(
-      "Planner returned non-JSON; falling back to single-step plan."
+      "Planner validation failed — response did not match required plan format."
     );
-    return "";
+    return { planPath: "", projectDir: "" };
   }
 }

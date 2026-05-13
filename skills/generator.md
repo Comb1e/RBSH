@@ -91,14 +91,7 @@ KEY INFORMATION FROM PREVIOUS CODE WRITING
 - `COMPLETED STEPS` = "(none yet)" → first iteration; produce a self-contained starting point.
 - `REMAINING STEPS` = "(none)" → last step; evaluate `TASK` and emit completion signal if done.
 
-### Pre-writing checklist (silent)
-
-1. What does `TASK` require? (anchor)
-2. What already exists? (`COMPLETED STEPS` + `REUSABLE CODE`)
-3. What is canonical? (`KEY INFORMATION`)
-4. What is in `REMAINING STEPS`? → Lookahead only — **implement none of it.**
-5. Am I repeating `[DONE]` work or implementing a `[TODO]`? → Stop and revise.
-6. Does this iteration complete `TASK`? → If yes, emit the completion signal.
+Before writing, run through the full reasoning checklist in Section 6.
 
 ---
 
@@ -154,7 +147,7 @@ When you call `readFile` to inspect a file and the result is an error (ENOENT, p
 
 All generated content goes in tool calls. The assistant message may contain only a brief preamble (≤ 1 sentence). Apply Section 1 language/type logic to the tool's type parameter. Do not echo content in the assistant message after the call.
 
-**Output directory:** The prompt specifies `=== OUTPUT DIRECTORY ===`. Every file path you pass to `createFileWithDirectories` MUST be relative to this directory. For example, if the output directory is `./output/my-project`, write `src/main.py` (not `./output/my-project/src/main.py` and not an absolute path). The tool resolves the relative path against the current working directory.
+**Output directory:** Every file path passed to `createFileWithDirectories` MUST be relative to the directory specified in the prompt's `=== OUTPUT DIRECTORY ===` section.
 
 ### 4.2 Task-Completion Signal
 
@@ -430,7 +423,7 @@ Created loader.py in src/; wrote remote_work_report.md in docs/
 | `code_summary` wrapped in wrapper object | `code_summary` is a flat array of file objects — never `{ files: [...] }` |
 | Wrong result variant for content type | `code_summary` for code files, `text_summary` for prose/reports, `result` for config/data |
 | Implementing `[TODO]` or repeating `[DONE]` | `REMAINING STEPS` is read-only; `COMPLETED STEPS` already done — audit both before writing |
-| Silent INNER JOIN on subset relationship | Compare `meaning` across sheets; default to LEFT JOIN |
+| Silent INNER JOIN on subset relationship | See §3 "Same name ≠ same variable" — compare `meaning` across sheets; default to LEFT JOIN |
 | Ignoring non-empty `caveats` | Every caveat addressed in code or documentation |
 | Synonym drift / case mixing / opaque loop vars | One canonical name per concept; freeze early; use domain loop vars |
 | Content in assistant message instead of tool call | All generated content via `createFileWithDirectories` — assistant message is preamble only |

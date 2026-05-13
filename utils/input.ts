@@ -6,6 +6,12 @@ export const rl = readline.createInterface({
   output: process.stdout,
 });
 
+process.on("SIGINT", () => {
+  console.log("\n[INFO] Exiting...");
+  rl.close();
+  process.exit(0);
+});
+
 export function input(prompt: string): Promise<string> {
   return new Promise((resolve) => {
     rl.question(prompt, (answer: string) => {
@@ -28,19 +34,23 @@ export async function getUserPromptByCommand(command: string): Promise<string> {
   }
 }
 
-export function checkCommond(command: string): string {
+export function checkCommand(command: string): string {
   if (command === "q") {
     rl.close();
     return "quit";
   } else if (command === "e") {
     console.log("[INFO] Switching to execution mode...");
-    return "excute";
+    return "execute";
+  } else if (command === "c") {
+    console.log("[INFO] Explaining input parameters...");
+    return "explain";
   } else if (command === "new") {
     return "new";
   } else if (command === "add" || command.startsWith("--add")) {
     return "add";
   }
-  return "";
+  // Any other text is treated as a modification instruction
+  return "modify";
 }
 
 /**

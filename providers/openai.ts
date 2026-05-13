@@ -81,11 +81,14 @@ export class OpenAIProvider implements LLMProvider {
 
         if (choice?.message?.tool_calls) {
           const toolCalls: UnifiedToolCall[] = choice.message.tool_calls
-            .filter((tc) => "function" in tc)
+            .filter(
+              (tc): tc is typeof tc & { function: { name: string; arguments: string } } =>
+                "function" in tc
+            )
             .map((tc) => ({
               id: tc.id,
-              name: (tc as any).function.name,
-              argStr: (tc as any).function.arguments,
+              name: tc.function.name,
+              argStr: tc.function.arguments,
             }));
           agentMessages.push({
             role: "assistant",
