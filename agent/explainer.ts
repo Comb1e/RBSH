@@ -1,5 +1,5 @@
 import type { LLMProvider } from "@/types/index.js";
-import { getExplainerPrompt } from "@/prompts/explainer.js";
+import { getExplainerPrompt, buildColumnScaffolding } from "@/prompts/explainer.js";
 import { mkdir, writeFile } from "fs/promises";
 import * as path from "path";
 import { env } from "../config/env.js";
@@ -60,6 +60,28 @@ export async function runExplainer(
   }
 
   const markdown = stripProjectNameTag(raw);
+
+  // Validate that column names in output match the input schema
+  const { knownColumns } = buildColumnScaffolding(inputSchemas);
+  if (knownColumns.size > 0) {
+    // Extract all backtick-delimited tokens from the markdown (column names in tables)
+    const backtickPattern = /`([^`]+)`/g;
+    let match: RegExpExecArray | null;
+    const translated: string[] = [];
+    while ((match = backtickPattern.exec(markdown)) !== null) {
+      const name = match[1];
+      // Skip non-column tokens (URLs, code snippets, etc.)
+      if (name.length > 60 || name.includes("://") || name.includes("\n")) continue;
+      if (!knownColumns.has(name) && !translated.includes(name)) {
+        translated.push(name);
+      }
+    }
+    if (translated.length > 0) {
+      console.warn(
+        `[WARN] Explainer may have translated ${translated.length} column name(s): ${translated.join(", ")}`
+      );
+    }
+  }
 
   await mkdir(projectDir, { recursive: true });
   const filePath = path.join(projectDir, "schema.md");

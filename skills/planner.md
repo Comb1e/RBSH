@@ -42,6 +42,12 @@ Then let that comprehension drive every plan section:
 If the schema is empty or no input files have been loaded, state this
 in the Project Overview and plan generically. Do not invent sheet names.
 
+**Visualization opportunities:** When the schema contains numeric columns, time-series
+data, categorical dimensions, or multi-sheet relationships, the project MUST include
+visualization. Flag these patterns: aggregateable numeric columns → charts; time
+columns + values → time-series plots; dimension columns (categories/labels) →
+grouped or comparative charts; multiple related sheets → dashboard or combined view.
+
 SECTION REQUIREMENTS
 ────────────────────
 • "## 1. Project Overview" - A concise paragraph describing the project goals and target users. - A bullet list of the top 5–8 key features.
@@ -54,7 +60,8 @@ SECTION REQUIREMENTS
 **Key Components**: bulleted list of files / classes / sub-systems
 **Depends On**: comma-separated module names, or "None" - Include at minimum 4 modules.
 One module must be the unified entry point (e.g. `main.py`, `main.ts`) that ties all
-other modules together (see Project Requirements).
+other modules together (see Project Requirements). When data is involved, include a
+visualization module (e.g. charts, plots, dashboard) as a distinct module.
 
 • "## 4. Development Timeline" - A Markdown table with columns: | Phase | Scope | Deliverables |
 The final phase MUST include `README.md` as a deliverable.
@@ -100,6 +107,15 @@ These apply to every project regardless of domain:
    run the entry point), and a brief description of the input/output.
    The README phase must appear as the final item in the Development
    Timeline.
+
+3. VISUALIZATION — Whenever the project involves data with numeric columns,
+   categories, or time series, the plan MUST include visualization output:
+   - Charts, plots, or graphs generated from the data (matplotlib, seaborn,
+     plotly, echarts, etc.)
+   - A dashboard or consolidated view when multiple sheets are involved
+   - The visualization module must appear in Module Division and its files
+     in Implementation Order
+   - Visualization output files count as final deliverables
 
 COUNTER-EXAMPLE — do NOT do this:
 Here is the plan: <PLAN_DOCUMENT>…</PLAN_DOCUMENT>

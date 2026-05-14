@@ -1,4 +1,5 @@
 import * as path from "path";
+import * as fs from "fs/promises";
 import { createProvider } from "./providers/llm.js";
 import { runGenerator, runHarness, plan, runExplainer, runPlanner } from "@/agent/index.js";
 import { dataPreprocess, readFilesFromList, readFilesFromRecord, input } from "@/utils/index.js";
@@ -119,6 +120,29 @@ async function fileExists(filePath: string): Promise<boolean> {
   }
 }
 
+async function copyInputFilesToProject(
+  fileNames: string[],
+  projectDir: string
+): Promise<string[]> {
+  if (fileNames.length === 0) return [];
+  const destDir = path.join(projectDir, "input_data");
+  await fs.mkdir(destDir, { recursive: true });
+  const copied: string[] = [];
+  for (const name of fileNames) {
+    const src = path.join(INPUT_RAW_DIR, name);
+    const dest = path.join(destDir, name);
+    try {
+      await fs.cp(src, dest);
+      const relPath = path.join("input_data", name);
+      copied.push(relPath);
+      console.log(`[INFO] Copied input file: ${name} → ${relPath}`);
+    } catch {
+      console.warn(`[WARN] Could not copy input file: ${name}`);
+    }
+  }
+  return copied;
+}
+
 // ── REPL state ──────────────────────────────────────────────────────────────
 
 interface ReplState {
@@ -196,6 +220,37 @@ async function main() {
         case "plan":
         case "modify": {
           const prevWorkType = state.workType;
+
+          // Copy input files to project (may have been skipped if explain was bypassed)
+          if (
+            prevWorkType !== "modify" &&
+            state.projectDir &&
+            cli.addFiles.length > 0
+          ) {
+            const copied = await copyInputFilesToProject(
+              cli.addFiles,
+              state.projectDir
+            );
+            if (copied.length > 0) {
+              const schemaPath = path.join(state.projectDir, "schema.md");
+              try {
+                const existing = await readFilesFromList([schemaPath]);
+                if (existing[0] && !existing[0].includes("## Input Files")) {
+                  const append =
+                    "\n\n## Input Files\n\n" +
+                    "Raw input files are available at these paths:\n\n" +
+                    copied.map((f) => `- \`${f}\``).join("\n") +
+                    "\n";
+                  await fs.appendFile(schemaPath, append, "utf-8");
+                  console.log(
+                    "[INFO] Input file locations appended to schema.md"
+                  );
+                }
+              } catch {
+                /* schema.md doesn't exist yet */
+              }
+            }
+          }
 
           // Read schema explanation when entering plan mode
           let schemaExplanation = "";
@@ -304,6 +359,30 @@ async function main() {
 
           if (result.schemaPath) {
             state.projectDir = result.projectDir || state.projectDir;
+
+            // Copy input files to project
+            if (cli.addFiles.length > 0 && state.projectDir) {
+              const copied = await copyInputFilesToProject(
+                cli.addFiles,
+                state.projectDir
+              );
+              if (copied.length > 0) {
+                const append =
+                  "\n\n## Input Files\n\n" +
+                  "Raw input files are available at these paths:\n\n" +
+                  copied.map((f) => `- \`${f}\``).join("\n") +
+                  "\n";
+                await fs.appendFile(
+                  path.join(state.projectDir, "schema.md"),
+                  append,
+                  "utf-8"
+                );
+                console.log(
+                  "[INFO] Input file locations appended to schema.md"
+                );
+              }
+            }
+
             state.planPath = planPathIn(state.projectDir);
             state.modifyTarget = result.schemaPath;
             console.log(`[INFO] Project dir: ${state.projectDir}`);

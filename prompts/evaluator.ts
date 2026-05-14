@@ -20,7 +20,7 @@ function buildFileChecklist(summaries?: ToolAnalysisResult[]): string {
     }
     if (s.code_summary) {
       for (const f of s.code_summary) {
-        const filePath = f.file.relative_path || f.file.file_name;
+        const filePath = f.file.relative_path;
         if (filePath && !files.some((x) => x.path === filePath)) {
           files.push({ path: filePath, purpose: s.purpose || "" });
         }
@@ -48,7 +48,8 @@ export async function getEvaluatorPrompt(
   output: string,
   inputSchemaDescription: string,
   preCodeSummarize: ToolAnalysisResult[],
-  currentToolSummarization?: ToolAnalysisResult[]
+  currentToolSummarization?: ToolAnalysisResult[],
+  outputDir?: string
 ): Promise<AgentMessage[]> {
   const basicSkills = await readFilesFromRecord(evaluatorBase);
   const fileChecklist = buildFileChecklist(currentToolSummarization);
@@ -56,6 +57,11 @@ export async function getEvaluatorPrompt(
   const systemPrompt = `
 === BASIC SKILLS ===
 ${basicSkills.join("\n\n")}
+
+=== OUTPUT DIRECTORY ===
+All generated files live under: ${outputDir || "./output"}
+Every path in "## Files to Verify" is relative to the project root and includes this prefix.
+Use the exact paths shown — do not strip the output directory prefix.
 
 === Background ===
 ${background}

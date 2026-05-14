@@ -34,24 +34,50 @@ The `## Output to Evaluate` and `## Files to Verify` sections tell you what the 
 
 ### Investigation workflow
 
-1. **Build a checklist** from the TASK_COMPLETE text:
-   - Extract every file name and path mentioned
-   - Note what action was claimed for each file (created, modified, etc.)
-2. **Read each claimed file** using `readFile` with a relative path (e.g. `"src/auth.js"`, never `"/src/auth.js"`)
+1. **Use `## Files to Verify` as your checklist** — paths listed there are mechanically
+   extracted from the generator's SUMMARIZATION JSON. They are project-root-relative and
+   authoritative. Cross-reference with TASK_COMPLETE claims, but always use the exact paths
+   from `## Files to Verify`. Do NOT trim, prefix, or "fix" them — if a path there doesn't
+   resolve, the file genuinely doesn't exist (Critical Failure).
+   - Skip files in `input_data/` — these are raw input data, not generated output
+2. **Read each claimed file** using `readFile` with the exact path from `## Files to Verify`.
+   Paths are project-root-relative (e.g. `"output/my-project/src/auth.js"`).
+   Never strip the output directory prefix. Never add a leading `/`.
 3. **Cross-reference** file contents against the task description:
    - Does the file exist at the claimed path?
    - Does its content fulfill the task requirements?
-4. **Check for unclaimed artifacts** — list the output directory to catch files the generator didn't mention.
+4. **Execute and verify actual output** — if the generated files are executable (Python, Node,
+   shell scripts, etc.), run them using `executeCommand`. Use `args` array, set `cwd` to the
+   output directory. Skip execution only for pure config files, markdown, or data files.
+
+   After running, systematically verify the result:
+
+   a. **Check `exitCode`** — non-zero = process failure. Read stderr for the cause.
+   b. **Check `stderr`** — any output on stderr is a correctness issue. The code should
+      use stderr only for intentional logging (rare in simple scripts).
+   c. **Check `diagnostics.errors`** — the tool scans output for error signatures
+      (tracebacks, exception names, `Error:`, `panic`, `Cannot find module`, etc.).
+      If this field is non-empty, the code produced errors regardless of exitCode.
+      Flag every entry under Correctness.
+   d. **Scan `stdout`** — even without diagnostics matches, read the actual output.
+      Error messages printed via `print()` or `console.log()` land here with exitCode 0.
+   e. **Verify expected output** — did the code produce the output specified in the task?
+      (output files with correct content, CLI results, server startup confirmation, etc.)
+
+   **A zero exit code with error output is still a failure.** Flag under Correctness
+   or as Critical Failure if errors prevent the code from fulfilling the task.
+5. **Check for unclaimed artifacts** — list the output directory to catch files the generator didn't mention.
 
 ### Investigation guide
 
 | TASK_COMPLETE claims... | Verify by... |
 |---|---|
-| "Created `<file>` in `<dir>`" | Read that file; check it exists and content is appropriate |
-| "Wrote `<file>`" | Read the file; verify content matches task requirements |
-| "Modified `<file>`" | Read file; compare against prior context |
+| "Created `<file>` in `<dir>`" | Read the file; if executable, run it |
+| "Wrote `<file>`" | Read the file; run it if it's a script/program |
+| "Modified `<file>`" | Read file; re-run affected executables |
 | "Ran a script / command" | Check output files, logs, or side effects |
-| Multiple files mentioned | List the directory; read each relevant file |
+| "Ran XX, exit 0" | Read stdout + stderr; check `diagnostics.errors`; verify expected output |
+| Multiple files mentioned | List the directory; read and run each relevant file |
 
 ---
 
@@ -140,6 +166,7 @@ Any of these triggers automatic failure regardless of other scores. Flag as `[CR
 - TASK_COMPLETE claims a file or action that cannot be verified (file absent or empty)
 - Hallucinated facts stated as certain
 - Code causing data loss, security holes, or system damage
+- Code exits 0 but produces error output that prevents it from fulfilling the task
 - Confident wrong answer to a question with a known correct answer
 - Refused a clearly safe task, or completed a clearly unsafe task
 - Work entirely off-topic
@@ -163,7 +190,7 @@ Wrap the entire evaluation inside XML tags:
 [types]
 
 ## Investigation Summary
-[Begin with the file path being evaluated, then what you checked and the key finding. One sentence. Example: `src/auth.js` — stub only, no JWT logic found.]
+[Begin with the file path being evaluated, then what you checked and the key finding. One sentence. Example: `output/my-project/src/auth.js` — stub only, no JWT logic found.]
 
 ## Dimensions Evaluated
 | Dimension | Score | Reasoning |
@@ -242,9 +269,9 @@ No prior steps were completed before this tool use.
 
 **Investigation:**
 
-- `readFile("src/middleware/auth.js")` → file exists; contains only `// TODO: implement JWT verification` and `module.exports = (req, res, next) => next();`
+- `readFile("output/my-project/src/middleware/auth.js")` → file exists; contains only `// TODO: implement JWT verification` and `module.exports = (req, res, next) => next();`
 - TASK_COMPLETE claims JWT authentication middleware was created — the actual file has no JWT logic
-- `readFile("src/app.js")` → middleware correctly imported and registered on line 8
+- `readFile("output/my-project/src/app.js")` → middleware correctly imported and registered on line 8
 
 **Evaluation:**
 
@@ -254,7 +281,7 @@ No prior steps were completed before this tool use.
 Code / Implementation
 
 ## Investigation Summary
-`src/middleware/auth.js` — stub only, no JWT logic; TASK_COMPLETE claimed JWT middleware was created but the file contains no verification.
+`output/my-project/src/middleware/auth.js` — stub only, no JWT logic; TASK_COMPLETE claimed JWT middleware was created but the file contains no verification.
 
 ## Dimensions Evaluated
 | Dimension | Score | Reasoning |
@@ -311,7 +338,7 @@ Cross-sheet: relationshipType "reference", note "returns.product_id is a subset 
 
 **Investigation:**
 
-- `readFile("src/net_revenue.py")` → uses `pd.merge(sales, returns, on='product_id', how='inner')` — INNER JOIN
+- `readFile("output/my-project/src/net_revenue.py")` → uses `pd.merge(sales, returns, on='product_id', how='inner')` — INNER JOIN
 - TASK_COMPLETE confirms INNER JOIN was used
 - Schema explicitly states returns is a subset and specifies LEFT JOIN
 - INNER JOIN silently drops products with no returns, inflating net revenue
@@ -324,7 +351,7 @@ Cross-sheet: relationshipType "reference", note "returns.product_id is a subset 
 Code / Implementation
 
 ## Investigation Summary
-`src/net_revenue.py` — uses INNER JOIN despite schema explicitly requiring LEFT JOIN for subset relationship.
+`output/my-project/src/net_revenue.py` — uses INNER JOIN despite schema explicitly requiring LEFT JOIN for subset relationship.
 
 ## Dimensions Evaluated
 | Dimension | Score | Reasoning |

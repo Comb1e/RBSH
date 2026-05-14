@@ -140,7 +140,7 @@ export const readFileToolDefinition: ToolDefinition<typeof ReadFileArgsSchema> =
   {
     name: "readFile",
     description:
-      "Reads file content within a line range to optimize context, or lists directory structure.",
+      "Reads file content within a line range to optimize context. Use listDir to browse directories.",
     schema: ReadFileArgsSchema,
     execute: async (args: ReadFileArgs) => {
       const result = await readFile(args);

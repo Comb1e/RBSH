@@ -152,38 +152,40 @@ All generated content goes in tool calls. The assistant message may contain only
 
 ### 4.1.1 Self-Verification (Run Before Declaring Done)
 
-Before emitting the completion signal, verify your output actually works:
+**The harness auto-runs your entry point when you declare `<TASK_COMPLETE>`.** If execution
+fails, you will see the error and must fix it — the completion will be rejected until the
+code runs successfully. Save yourself an iteration by verifying first:
 
-1. **Run the code** — use `executeCommand` to execute what you created:
+1. **Run the entry point yourself** using `executeCommand` before declaring done.
    - Python: `{ "command": "python", "args": ["src/main.py"], "cwd": "<output-dir>" }`
    - Node: `{ "command": "node", "args": ["src/index.js"], "cwd": "<output-dir>" }`
+   - TypeScript: `{ "command": "npx", "args": ["tsx", "src/index.ts"], "cwd": "<output-dir>" }`
    - Tests: `{ "command": "npm", "args": ["test"], "cwd": "<output-dir>" }`
-   - Type-check: `{ "command": "npx", "args": ["tsc", "--noEmit"], "cwd": "<output-dir>" }`
    - Install deps: `{ "command": "pip", "args": ["install", "-r", "requirements.txt"], "cwd": "<output-dir>" }`
 
-2. **Fix failures** — if `exitCode !== 0` or stderr shows errors, read the error output,
-   fix the files that caused the failure, and re-run. Do NOT emit TASK_COMPLETE until
-   verification passes or you have exhausted reasonable fixes (document what you tried).
+2. **Fix failures** — check `exitCode`, `stderr`, and `diagnostics.errors` in the result.
+   Fix and re-run until it passes. Do NOT emit `<TASK_COMPLETE>` until execution succeeds.
 
 3. **Always use the `args` array** — never embed arguments in the command string.
-   The `args` field is safer and required for correct execution without a shell.
 
 4. **Set `cwd`** to the output directory (from `=== OUTPUT DIRECTORY ===`) when running
    scripts that reference relative paths or imported modules.
 
-5. **Respect timeouts** — default is 30s. Set a longer `timeout` only if needed.
+5. **Entry point naming** — name your main file `main.*`, `index.*`, `app.*`, or `run.*`
+   so the harness can find and auto-verify it. The harness prefers these patterns.
 
-6. **Final step** — if this is the last step in the plan, also run the project's entry
-   point or full test suite to verify integration, not just individual files.
+6. **Final step** — if this is the last step in the plan, also run the project's full test
+   suite or pipeline to verify end-to-end integration.
 
 ### 4.1.2 Copying Input Files
 
-Use `copyFile` to bring raw data from `input_raw/` into the project:
-- `{ "sourcePath": "data.csv", "destPath": "data/data.csv" }`
-- Directories: `{ "sourcePath": "raw_data/", "destPath": "data/" }`
+Input data files are already in `input_data/` — they were copied when the project
+was created. Reference them directly by path (e.g. `input_data/data.xlsx`). Do NOT
+use `copyFile` for files that already exist in the project.
 
-`sourcePath` is relative to `input_raw/`, `destPath` is relative to the output directory.
-Always copy input data before processing it — do not read + rewrite manually.
+Only use `copyFile` if you need to bring in additional raw files that were not
+included during project setup. `sourcePath` is relative to `input_raw/`, `destPath`
+is relative to the output directory.
 
 ### 4.2 Task-Completion Signal
 
@@ -199,8 +201,8 @@ A valid JSON array listing what files were created:
   {
     "purpose": "Created CSV loader and data cleaner modules.",
     "files": [
-      { "path": "src/loader.py", "summary": "CSV loading with load_csv(filepath)" },
-      { "path": "src/cleaner.py", "summary": "Data cleaning pipeline with clean_rows()" }
+      { "path": "output/my-project/src/loader.py", "summary": "CSV loading with load_csv(filepath)" },
+      { "path": "output/my-project/src/cleaner.py", "summary": "Data cleaning pipeline with clean_rows()" }
     ]
   }
 ]
@@ -210,7 +212,10 @@ A valid JSON array listing what files were created:
 If only one file was created, still wrap `files` in an array.
 
 - `purpose` — one sentence: what this step accomplished overall
-- `files[].path` — **full relative path** exactly as passed to `createFileWithDirectories` (e.g. `"src/loader.py"`, not `"loader.py"`). The evaluator calls `readFile` with this path — a wrong path means the file won't be found.
+- `files[].path` — **path relative to the project root**, including the output directory
+  prefix from `=== OUTPUT DIRECTORY ===` (e.g. `"output/my-project/src/loader.py"`, not
+  `"src/loader.py"`). The evaluator calls `readFile` with this exact path — it must resolve
+  from the project root, not from the output directory.
 - `files[].summary` — one-line description including key exported names so subsequent steps know what's available without reading every file
 
 **Part 2 — Task completion note** (`<TASK_COMPLETE>` XML tag):
@@ -370,8 +375,8 @@ def column_with_highest_mean(filepath: str | Path) -> str:
   {
     "purpose": "Created CSV loader module and remote work report.",
     "files": [
-      { "path": "src/loader.py", "summary": "CSV loading with load_csv(filepath)" },
-      { "path": "docs/remote_work_report.md", "summary": "Research report on remote work productivity" }
+      { "path": "output/my-project/src/loader.py", "summary": "CSV loading with load_csv(filepath)" },
+      { "path": "output/my-project/docs/remote_work_report.md", "summary": "Research report on remote work productivity" }
     ]
   }
 ]

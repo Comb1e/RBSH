@@ -63,7 +63,8 @@ async function generatorEvaluatorLoop(
       draft,
       schemaDescription,
       artifact.preToolSummarize,
-      toolSummarization
+      toolSummarization,
+      outputDir
     );
 
     const scoreResult: ScoreExtractionResult = extractOverallScore(
@@ -182,13 +183,16 @@ export async function runHarness(
     console.log("─".repeat(60));
 
     const verifyTask = [
-      "Verify the entire project works correctly:",
-      "- Identify the entry point from the plan or generated files",
-      "- Run the project (e.g. python main.py, node src/index.js, npm start)",
-      "- If tests exist, run them",
-      "- If the project processes data, test with sample input",
-      "- Fix any failures and re-verify",
-      "- Report what you checked and the final result",
+      "ALL FILES ALREADY EXIST. DO NOT CREATE, REWRITE, OR MODIFY ANY FILES.",
+      "Your ONLY job is to run the completed project and verify it works.",
+      "",
+      "1. Look at the SUMMARIZATION OF COMPLETED STEPS below — it lists every file",
+      "   that was created. Use readFile to inspect the entry point if needed.",
+      "2. Run the project's entry point using executeCommand. Try multiple approaches",
+      "   if the first one fails (e.g. python main.py, then python src/main.py).",
+      "3. If tests exist, run them.",
+      "4. If the project fails, read the error, fix ONLY the broken file, and re-run.",
+      "5. Report what you ran and whether it succeeded.",
     ].join("\n");
 
     const verifyResult = await generatorEvaluatorLoop(
@@ -196,7 +200,7 @@ export async function runHarness(
       plan,
       {
         task: verifyTask,
-        completedSteps: [],
+        completedSteps: [...artifact.completedSteps],
         remainingSteps: [],
         preToolSummarize: artifact.preToolSummarize,
         iterationCount: 0,

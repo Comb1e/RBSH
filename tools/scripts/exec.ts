@@ -74,6 +74,10 @@ function sanitizeOutput(output: string): string {
 
 // ── Command execution ────────────────────────────────────────────────────────
 
+interface CommandDiagnostics {
+  errors: string[];
+}
+
 interface CommandResult {
   stdout: string;
   stderr: string;
@@ -82,6 +86,61 @@ interface CommandResult {
   timedOut: boolean;
   command: string;
   duration: number;
+  diagnostics?: CommandDiagnostics;
+}
+
+// ── Error pattern scanning ─────────────────────────────────────────────────────
+
+/** Patterns that indicate code printed errors even if exitCode was 0. */
+const ERROR_PATTERNS: { pattern: RegExp; label: string }[] = [
+  // Python
+  { pattern: /Traceback\s*\(most recent call last\)/i, label: "Python traceback" },
+  { pattern: /\b(ModuleNotFoundError|ImportError|SyntaxError|IndentationError)\b/, label: "Python import/syntax error" },
+  { pattern: /\b(ValueError|TypeError|KeyError|IndexError|AttributeError)\b/, label: "Python runtime error" },
+  { pattern: /\b(FileNotFoundError|PermissionError|OSError|IOError)\b/, label: "Python file/OS error" },
+  { pattern: /\b(NameError|UnboundLocalError|RecursionError|AssertionError)\b/, label: "Python logic error" },
+  { pattern: /\bZeroDivisionError\b/, label: "Python division by zero" },
+  // JS / Node
+  { pattern: /\b(ReferenceError|TypeError|SyntaxError|RangeError|URIError)\b/, label: "JavaScript error" },
+  { pattern: /UnhandledPromiseRejection/i, label: "Unhandled promise rejection" },
+  { pattern: /Cannot find module\b/i, label: "Node missing module" },
+  // Generic / shell
+  { pattern: /\bpanic\b/i, label: "panic" },
+  { pattern: /\bfatal\s*:/i, label: "fatal error" },
+  { pattern: /\bSIGSEGV\b/i, label: "segmentation fault" },
+  { pattern: /\bcommand not found\b/i, label: "command not found" },
+  { pattern: /\bNo such file or directory\b/i, label: "file not found" },
+  { pattern: /\bPermission denied\b/i, label: "permission denied" },
+  { pattern: /\bcannot access\b/i, label: "cannot access" },
+  // R
+  { pattern: /\bError in\b/, label: "R error" },
+];
+
+function scanForErrors(stdout: string, stderr: string): CommandDiagnostics | undefined {
+  const errors: string[] = [];
+  const seen = new Set<string>();
+
+  const lines = [
+    ...stdout.split("\n"),
+    ...stderr.split("\n"),
+  ];
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || seen.has(trimmed)) continue;
+
+    for (const { pattern, label } of ERROR_PATTERNS) {
+      if (pattern.test(trimmed)) {
+        const entry = `[${label}] ${trimmed.slice(0, 200)}`;
+        if (!seen.has(entry)) {
+          seen.add(entry);
+          errors.push(entry);
+        }
+      }
+    }
+  }
+
+  return errors.length > 0 ? { errors } : undefined;
 }
 
 function isCwdSafe(cwd: string): boolean {
@@ -91,7 +150,7 @@ function isCwdSafe(cwd: string): boolean {
   return resolved.startsWith(projectRoot) || resolved.startsWith(outputDir);
 }
 
-function executeCommand(options: CommandOptions): Promise<CommandResult> {
+export function executeCommand(options: CommandOptions): Promise<CommandResult> {
   const startTime = Date.now();
   let timedOut = false;
   let killed = false;
@@ -159,17 +218,20 @@ function executeCommand(options: CommandOptions): Promise<CommandResult> {
         child.kill("SIGKILL");
       }
       timedOut = true;
-      settle(() =>
+      settle(() => {
+        const out = sanitizeOutput(stdout);
+        const err = sanitizeOutput(stderr);
         resolve({
-          stdout: sanitizeOutput(stdout),
-          stderr: sanitizeOutput(stderr),
+          stdout: out,
+          stderr: err,
           exitCode: null,
           killed: true,
           timedOut: true,
           command: options.command,
           duration: Date.now() - startTime,
-        })
-      );
+          diagnostics: scanForErrors(out, err),
+        });
+      });
     }, hardTimeoutMs);
 
     const softTimeout = setTimeout(() => {
@@ -182,17 +244,20 @@ function executeCommand(options: CommandOptions): Promise<CommandResult> {
       clearTimeout(hardTimeout);
       exitCode = code;
       killed = signal !== null;
-      settle(() =>
+      settle(() => {
+        const out = sanitizeOutput(stdout);
+        const err = sanitizeOutput(stderr);
         resolve({
-          stdout: sanitizeOutput(stdout),
-          stderr: sanitizeOutput(stderr),
+          stdout: out,
+          stderr: err,
           exitCode,
           killed,
           timedOut,
           command: options.command,
           duration: Date.now() - startTime,
-        })
-      );
+          diagnostics: scanForErrors(out, err),
+        });
+      });
     });
 
     child.on("error", (error) => {
@@ -206,7 +271,7 @@ function executeCommand(options: CommandOptions): Promise<CommandResult> {
 // ── Tool definition ──────────────────────────────────────────────────────────
 
 export const executeCommandTool = {
-  name: "execute_command",
+  name: "executeCommand",
   description: `Execute a command safely without a shell.
 
 Use cases:

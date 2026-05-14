@@ -3,7 +3,7 @@ import type { ToolAnalysisResult } from "@/schemas/index.js";
 import { readFilesFromRecord } from "@/utils/get_params.js";
 
 const generatorBase = {
-  skills: ["generator.md", "user_preferences.md"],
+  skills: ["generator.md", "coding.md", "user_preferences.md"],
 };
 
 function renderPriorContext(summaries: ToolAnalysisResult[]): string {
@@ -25,8 +25,15 @@ function renderPriorContext(summaries: ToolAnalysisResult[]): string {
   }
 
   return files.length > 0
-    ? `Files from completed steps (use readFile to inspect before importing):\n${files.join("\n")}`
-    : `Completed steps: ${summaries.map((s) => s.purpose).filter(Boolean).join("; ") || "(no details)"}`;
+    ? `Files from completed steps (use readFile to inspect before importing):\n${files.join(
+        "\n"
+      )}`
+    : `Completed steps: ${
+        summaries
+          .map((s) => s.purpose)
+          .filter(Boolean)
+          .join("; ") || "(no details)"
+      }`;
 }
 
 export async function createGeneratorBaseMessage(
@@ -72,14 +79,11 @@ export async function createGeneratorBaseMessage(
   These steps have been fully executed. Their outputs are captured
   in "Code Summarization" and "Previous Output" below.
   ${
-    Object.entries(artifact.completedSteps).length > 0
-      ? Object.entries(artifact.completedSteps)
-          .map(
-            ([key, value], i) =>
-              `  [DONE] ${i + 1}. ${key}\n         Output: ${value}`
-          )
+    artifact.completedSteps.length > 0
+      ? artifact.completedSteps
+          .map((step, i) => `  [DONE] ${i + 1}. ${step}`)
           .join("\n")
-      : "  (none yet — this is the first iteration)"
+      : "  (all prior steps completed — files listed in SUMMARIZATION below)"
   }
 
   ⏳ REMAINING STEPS (YOUR FOCUS — implement these next)
