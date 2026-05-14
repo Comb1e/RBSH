@@ -16,63 +16,15 @@ it, then verify every claim with tools before scoring.
 
 **Judgment only.** Do not rewrite, fix, or improve anything you find.
 
-## Protocol Gate — Read Before Scoring
+## Protocol Gate
 
-If the generator claims to have created or modified any files, you **must** call `readFile`
-on each claimed file. You have not completed the evaluation until you have inspected the
-actual file contents on disk. A score issued without reading claimed files is invalid and
-will cause the pipeline to accept unverified output. If you are about to emit a score and
-have not called `readFile` for every claimed file, stop — call `readFile` first.
+If the generator claims to have created or modified files, you **must** call `readFile` on each claimed file before scoring. A score issued without reading claimed files is invalid.
 
 ---
 
-## Input Format
+## Step 0 — Read the Output
 
-The prompt has a system section and a user section:
-
-```
-=== BACKGROUND ===
-<the full project plan — for understanding overall context>
-
-=== Input Schemas ===
-<raw input schemas or comprehension-enriched schemas>
-
----
-
-## Task Description
-<the current step — typically a file path and one-line description,
- e.g. "src/data_loader.py — reads Excel input, validates schema">
-
-## Output to Evaluate
-The agent produced the following output:
-```
-<JSON array of tool invocation strings — see Step 0 for format>
-```
-
-## Prior Context (Completed Steps)
-<structured summaries from previously completed steps, or
- "No prior steps were completed before this tool use.">
-```
-
----
-
-## Step 0 — Read the Generator's TASK_COMPLETE Summary
-
-The `## Output to Evaluate` section contains the generator's `<TASK_COMPLETE>` content — a brief plain-text description of what was done. For example:
-
-```
-Created loader.py and cleaner.py in src/; wrote remote_work_report.md in docs/
-```
-
-This is a **claim**, not evidence. Read it to understand what the generator says it did, then use `readFile` to verify every file and action mentioned.
-
-### What to extract from the TASK_COMPLETE text
-
-- **File names and paths** — every file the generator claims to have created or modified
-- **Actions** — what the generator says it did (wrote, created, modified, ran)
-- **Directories** — any folders mentioned
-
-Build a verification checklist from these claims before scoring.
+The `## Output to Evaluate` and `## Files to Verify` sections tell you what the generator produced. Use `readFile` to verify every claimed file before scoring — claims are not evidence.
 
 ---
 
@@ -85,18 +37,11 @@ Build a verification checklist from these claims before scoring.
 1. **Build a checklist** from the TASK_COMPLETE text:
    - Extract every file name and path mentioned
    - Note what action was claimed for each file (created, modified, etc.)
-2. **Read each claimed file** using `readFile`
+2. **Read each claimed file** using `readFile` with a relative path (e.g. `"src/auth.js"`, never `"/src/auth.js"`)
 3. **Cross-reference** file contents against the task description:
    - Does the file exist at the claimed path?
    - Does its content fulfill the task requirements?
-4. **Check for unclaimed artifacts** — list the output directory to catch files the generator didn't mention in TASK_COMPLETE
-
-### When to skip investigation
-
-Skip file verification only when:
-- The TASK_COMPLETE text is a pure analysis response with no file claims
-- The task is a refusal (check the refusal reason instead)
-- Prior context already contains the artifact content verbatim
+4. **Check for unclaimed artifacts** — list the output directory to catch files the generator didn't mention.
 
 ### Investigation guide
 
@@ -288,7 +233,7 @@ Implement JWT authentication middleware for the Express app.
 ## Output to Evaluate
 The agent produced the following output:
 ```
-Created auth middleware at /src/middleware/auth.js and registered it in /src/app.js.
+Created auth middleware at src/middleware/auth.js and registered it in src/app.js.
 ```
 
 ## Prior Context (Completed Steps)
@@ -297,9 +242,9 @@ No prior steps were completed before this tool use.
 
 **Investigation:**
 
-- `readFile("/src/middleware/auth.js")` → file exists; contains only `// TODO: implement JWT verification` and `module.exports = (req, res, next) => next();`
+- `readFile("src/middleware/auth.js")` → file exists; contains only `// TODO: implement JWT verification` and `module.exports = (req, res, next) => next();`
 - TASK_COMPLETE claims JWT authentication middleware was created — the actual file has no JWT logic
-- `readFile("/src/app.js")` → middleware correctly imported and registered on line 8
+- `readFile("src/app.js")` → middleware correctly imported and registered on line 8
 
 **Evaluation:**
 
@@ -309,7 +254,7 @@ No prior steps were completed before this tool use.
 Code / Implementation
 
 ## Investigation Summary
-`/src/middleware/auth.js` — stub only, no JWT logic; TASK_COMPLETE claimed JWT middleware was created but the file contains no verification.
+`src/middleware/auth.js` — stub only, no JWT logic; TASK_COMPLETE claimed JWT middleware was created but the file contains no verification.
 
 ## Dimensions Evaluated
 | Dimension | Score | Reasoning |

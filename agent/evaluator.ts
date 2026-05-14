@@ -16,19 +16,20 @@ export async function runEvaluator(
   task: string,
   output: string,
   inputSchemaDescription: string,
-  preCodeSummarize: ToolAnalysisResult[] //ToolAnalysisResult[]
+  preCodeSummarize: ToolAnalysisResult[],
+  currentToolSummarization?: ToolAnalysisResult[]
 ): Promise<AgentCompletionResult> {
   console.log("\n╔══════════════════════════════╗");
   console.log("║  EVALUATOR AGENT             ║");
   console.log("╚══════════════════════════════╝\n");
 
-  // Evaluator needs no tools — pure LLM reasoning
   const agentMessages = await getEvaluatorPrompt(
     task,
     background,
     output,
     inputSchemaDescription,
-    preCodeSummarize
+    preCodeSummarize,
+    currentToolSummarization
   );
   const result = await runAgent(
     provider,

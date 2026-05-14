@@ -46,6 +46,8 @@ export function checkCommand(command: string): string {
     return "explain";
   } else if (command === "new") {
     return "new";
+  } else if (command === "p") {
+    return "plan";
   } else if (command === "add" || command.startsWith("--add")) {
     return "add";
   }

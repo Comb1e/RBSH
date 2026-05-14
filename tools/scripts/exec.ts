@@ -1,3 +1,4 @@
+import * as path from "path";
 import type { ToolDefinition } from "@/types/index.js";
 import { CommandOptions, CommandOptionsSchema } from "@/schemas/index.js";
 import { spawn, ChildProcess } from "child_process";
@@ -14,8 +15,8 @@ function getAllowedCommands(): Set<string> | null {
 /** Patterns that are unconditionally blocked even outside allowlist mode. */
 const BLOCKED_PATTERNS = [
   /rm\s+(-[rRf]+\s+)+\//,          // rm -rf /
-  /rm\s+-[rRf]+\s+\.\//,           // rm -rf ./
   /rm\s+-[rRf]+\s+\$/,             // rm -rf $VAR (environment destruction)
+  /rm\s+-[rRf]+\s+~/,              // rm -rf ~ (home directory)
   /dd\s+if=/i,                     // raw disk operations
   /mkfs/i,                         // filesystem creation
   /chmod\s+777\s+\//i,            // world-writable root
@@ -27,11 +28,15 @@ const BLOCKED_PATTERNS = [
   /wget.*-O\s*-\s*\|/i,            // wget pipe
 ];
 
-function isCommandSafe(command: string): boolean {
+function extractBaseCommand(command: string): string {
+  return command.trim().split(/\s+/)[0];
+}
+
+function isCommandSafe(command: string, args: string[]): boolean {
   // Allowlist mode: only allow explicitly listed commands
   const allowed = getAllowedCommands();
   if (allowed) {
-    const base = command.trim().split(/\s+/)[0];
+    const base = extractBaseCommand(command);
     if (!allowed.has(base)) {
       throw new Error(
         `Command "${base}" is not in the allowed list. Allowed: ${[...allowed].join(", ")}`
@@ -39,9 +44,14 @@ function isCommandSafe(command: string): boolean {
     }
   }
 
+  // Build full command string for pattern matching
+  const fullCommand = args.length > 0
+    ? `${command} ${args.join(" ")}`
+    : command;
+
   // Always block dangerous patterns
   for (const pattern of BLOCKED_PATTERNS) {
-    if (pattern.test(command)) {
+    if (pattern.test(fullCommand)) {
       throw new Error(
         `Command blocked by security policy (matched: ${pattern.source})`
       );
@@ -74,18 +84,32 @@ interface CommandResult {
   duration: number;
 }
 
+function isCwdSafe(cwd: string): boolean {
+  const resolved = path.resolve(cwd);
+  const projectRoot = path.resolve(".");
+  const outputDir = path.resolve("./output");
+  return resolved.startsWith(projectRoot) || resolved.startsWith(outputDir);
+}
+
 function executeCommand(options: CommandOptions): Promise<CommandResult> {
   const startTime = Date.now();
   let timedOut = false;
   let killed = false;
   let exitCode: number | null = null;
 
-  isCommandSafe(options.command);
+  const cwd = options.cwd ?? process.cwd();
+  if (!isCwdSafe(cwd)) {
+    return Promise.reject(
+      new Error(`cwd "${cwd}" is outside the project directory. Operations must stay within the project.`)
+    );
+  }
+
+  isCommandSafe(options.command, options.args ?? []);
 
   return new Promise((resolve, reject) => {
-    const child: ChildProcess = spawn(options.command, {
-      cwd: options.cwd ?? process.cwd(), // lazy default
-      shell: options.shell ?? false,     // safer default: no shell
+    const child: ChildProcess = spawn(options.command, options.args ?? [], {
+      cwd: options.cwd ?? process.cwd(),
+      shell: options.shell ?? false,
       env: { ...process.env, ...options.env },
       stdio: ["pipe", "pipe", "pipe"],
     });
@@ -183,20 +207,25 @@ function executeCommand(options: CommandOptions): Promise<CommandResult> {
 
 export const executeCommandTool = {
   name: "execute_command",
-  description: `Execute a command in the system shell.
+  description: `Execute a command safely without a shell.
 
 Use cases:
-- Run system commands or scripts
-- File operations (create, read, modify)
-- Network requests (curl, wget, etc.)
+- Run generated code: { command: "python", args: ["src/main.py"] }
+- Run tests: { command: "npm", args: ["test"], cwd: "./output/project" }
+- Type-check: { command: "npx", args: ["tsc", "--noEmit"] }
+- Install deps: { command: "pip", args: ["install", "-r", "requirements.txt"] }
+
+Always pass arguments via the 'args' array — never embed them in the command string.
+Set 'cwd' to the output directory when running scripts that use relative paths.
 
 Security:
-- Allowlist mode when EXEC_ALLOWED_COMMANDS env is set (e.g. "node,python,git")
-- Dangerous commands (rm -rf /, dd, mkfs, etc.) are always blocked
+- Allowlist mode when EXEC_ALLOWED_COMMANDS env is set (e.g. "python,node,npm")
+- Dangerous patterns (rm -rf /, dd, mkfs, curl|sh, etc.) are always blocked
+- cwd is restricted to the project directory and ./output
 - Default timeout: 30s. Hard kill at timeout + 10s.
 - Max output buffer: 10MB
 - Sensitive info (password, token) auto-redacted
-- Default shell: false (safer)`,
+- shell defaults to false for safe argument handling`,
 
   schema: CommandOptionsSchema,
 

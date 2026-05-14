@@ -1,8 +1,9 @@
 {
   "permissions": {
-    "allow": [
-      "Bash(npx tsc *)",
-      "Bash(node -e ' *)"
-    ]
+    "allow": ["Bash(npx tsc *)", "Bash(node -e ' *)", "Bash(dir *)"]
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "input=$(cat); model=$(echo \"$input\" | grep -o '\"display_name\":\"[^\"]*\"' | head -1 | sed 's/.*\":\"//;s/\"//'); used=$(echo \"$input\" | grep -o '\"used_percentage\":[0-9.]*' | head -1 | sed 's/.*://'); if [ -n \"$used\" ]; then printf '%s | %.0f%%' \"$model\" \"$used\"; else echo \"$model\"; fi"
   }
 }

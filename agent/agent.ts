@@ -88,7 +88,7 @@ export async function runAgent(
           );
           summarizeResults.push(...summarization);
           return {
-            content: JSON.stringify(evaluatorUseStr),
+            content: JSON.stringify(evaluatorUseStr) + "\n\n" + ifComplete,
             toolSummarization: summarizeResults,
           };
         } else {

@@ -3,61 +3,88 @@ import type { ToolAnalysisResult } from "@/schemas/index.js";
 import { readFilesFromRecord } from "@/utils/get_params.js";
 
 const evaluatorBase = {
-  skills: ["evaluator.md", "user_preferences.md"],
+  skills: ["evaluator.md"],
 };
+
+function buildFileChecklist(summaries?: ToolAnalysisResult[]): string {
+  if (!summaries || summaries.length === 0) return "";
+
+  const files: { path: string; purpose: string }[] = [];
+  for (const s of summaries) {
+    if (s.files) {
+      for (const f of s.files) {
+        if (f.path && !files.some((x) => x.path === f.path)) {
+          files.push({ path: f.path, purpose: f.summary || s.purpose || "" });
+        }
+      }
+    }
+    if (s.code_summary) {
+      for (const f of s.code_summary) {
+        const filePath = f.file.relative_path || f.file.file_name;
+        if (filePath && !files.some((x) => x.path === filePath)) {
+          files.push({ path: filePath, purpose: s.purpose || "" });
+        }
+      }
+    }
+  }
+
+  if (files.length === 0) return "";
+
+  const lines = [
+    "## Files to Verify",
+    "The generator's tool invocations reference these files. You MUST call",
+    "`readFile` on EVERY file listed below before scoring. If a file does not",
+    "exist at the exact path shown, that is a Critical Failure.",
+    "",
+    ...files.map((f) => `- \`${f.path}\` — ${f.purpose}`),
+    "",
+  ];
+  return lines.join("\n");
+}
 
 export async function getEvaluatorPrompt(
   task: string,
   background: string,
   output: string,
   inputSchemaDescription: string,
-  preCodeSummarize: ToolAnalysisResult[] //ToolAnalysisResult[]
+  preCodeSummarize: ToolAnalysisResult[],
+  currentToolSummarization?: ToolAnalysisResult[]
 ): Promise<AgentMessage[]> {
   const basicSkills = await readFilesFromRecord(evaluatorBase);
+  const fileChecklist = buildFileChecklist(currentToolSummarization);
+
   const systemPrompt = `
-  === BASIC SKILLS ===
-  ${basicSkills.join("\n\n")}
+=== BASIC SKILLS ===
+${basicSkills.join("\n\n")}
 
-  === MANDATORY VERIFICATION ===
-  If the generator's output mentions ANY files (created, modified, or referenced),
-  you MUST call readFile on EVERY claimed file before scoring. The generator's
-  claims are not evidence — only the file contents on disk are authoritative.
-  Scoring without reading files when files are claimed is an automatic protocol
-  violation and will cause the pipeline to accept broken output.
+=== Background ===
+${background}
 
-  === Background ===
-  ${background}
-
-  === Input Schemas ===
-  There are excel sheets with the following columns:
-  ${inputSchemaDescription}
-  `.trim();
+=== Input Schemas ===
+${inputSchemaDescription}
+`.trim();
 
   const userPrompt = `
-  ## Task Description
-  The following task was assigned to another agent:
-  ${task}
+## Task Description
+${task}
 
-  ## Output to Evaluate
-  The generator claims to have produced the following:
-  \`\`\`
-  ${output}
-  \`\`\`
+${fileChecklist}
+## Output to Evaluate
+The generator produced the following output:
+\`\`\`
+${output}
+\`\`\`
 
-  Verify every file claim with readFile before scoring.
+## Prior Context (Completed Steps)
+${
+  preCodeSummarize.length > 0
+    ? `Summary of code or content produced in earlier steps:\n${JSON.stringify(preCodeSummarize, null, 2)}`
+    : "No prior steps were completed before this tool use."
+}
+`.trim();
 
-  ## Prior Context (Completed Steps)
-  ${
-    preCodeSummarize.length > 0
-      ? `The following is a summary of code or content produced in earlier steps:\n${JSON.stringify(preCodeSummarize, null, 2)}`
-      : "No prior steps were completed before this tool use."
-  }
-  `.trim();
   return [
-    {
-      role: "system",
-      content: systemPrompt,
-    },
+    { role: "system", content: systemPrompt },
     { role: "user", content: userPrompt },
   ];
 }

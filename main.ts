@@ -1,7 +1,7 @@
 import * as path from "path";
 import { createProvider } from "./providers/llm.js";
-import { runGenerator, runHarness, plan, runExplainer } from "@/agent/index.js";
-import { dataPreprocess, readFilesFromList, input } from "@/utils/index.js";
+import { runGenerator, runHarness, plan, runExplainer, runPlanner } from "@/agent/index.js";
+import { dataPreprocess, readFilesFromList, readFilesFromRecord, input } from "@/utils/index.js";
 import type { PlanResult } from "@/types/index.js";
 
 const INPUT_RAW_DIR = "./input_raw";
@@ -10,7 +10,7 @@ const OUTPUT_DIR = "./output";
 
 // ── CLI argument types ──────────────────────────────────────────────────────
 
-type Command = "plan" | "execute" | "generate";
+type Command = "plan" | "execute" | "generate" | "explain";
 
 interface CliArgs {
   command: Command;
@@ -18,7 +18,7 @@ interface CliArgs {
   addFiles: string[];
 }
 
-const VALID_COMMANDS: readonly Command[] = ["plan", "execute", "generate"];
+const VALID_COMMANDS: readonly Command[] = ["plan", "execute", "generate", "explain"];
 
 // ── CLI parsing ────────────────────────────────────────────────────────────
 
@@ -38,8 +38,17 @@ function parseCliArgs(raw: string[]): CliArgs {
     }
   }
 
-  const command = (positional[0] || "plan") as Command;
-  const projectName: string | undefined = positional[1];
+  let command: Command;
+  let projectName: string | undefined;
+
+  if (positional[0] && !(VALID_COMMANDS as readonly string[]).includes(positional[0])) {
+    // First positional is not a command — treat as project name, default to explain
+    command = "explain";
+    projectName = positional[0];
+  } else {
+    command = (positional[0] || "explain") as Command;
+    projectName = positional[1];
+  }
 
   if (!(VALID_COMMANDS as readonly string[]).includes(command)) {
     throw new Error(
@@ -49,7 +58,7 @@ function parseCliArgs(raw: string[]): CliArgs {
     );
   }
 
-  if ((command === "execute" || command === "generate") && !projectName) {
+  if ((command === "plan" || command === "execute" || command === "generate") && !projectName) {
     throw new Error(
       `The "${command}" command requires a project name.\n` +
         `Usage: npx tsx main.ts ${command} <project-name> [--add file.xlsx ...]`
@@ -101,6 +110,15 @@ async function addFiles(
   return [...existing, ...contents];
 }
 
+async function fileExists(filePath: string): Promise<boolean> {
+  try {
+    const r = await readFilesFromList([filePath]);
+    return r.length > 0 && r[0].length > 0;
+  } catch {
+    return false;
+  }
+}
+
 // ── REPL state ──────────────────────────────────────────────────────────────
 
 interface ReplState {
@@ -133,6 +151,34 @@ async function main() {
   const provider = createProvider();
   state.inputSchemas = await addFiles(cli.addFiles, []);
 
+  // ── Phase detection: skip to appropriate phase if project exists ────────
+  if (
+    state.workType === "explain" &&
+    state.projectDir &&
+    cli.addFiles.length === 0
+  ) {
+    const schemaMdPath = path.join(state.projectDir, "schema.md");
+    const planMdPath = path.join(state.projectDir, "plan.md");
+    const [hasSchema, hasPlan] = await Promise.all([
+      fileExists(schemaMdPath),
+      fileExists(planMdPath),
+    ]);
+
+    if (hasSchema && hasPlan) {
+      console.log(
+        `[INFO] Found existing project — resuming at plan modification.`
+      );
+      state.workType = "modify";
+      state.modifyTarget = planMdPath;
+    } else if (hasSchema) {
+      console.log(
+        `[INFO] Found schema.md — resuming at schema modification.`
+      );
+      state.workType = "modify";
+      state.modifyTarget = schemaMdPath;
+    }
+  }
+
   // ── REPL loop ──────────────────────────────────────────────────────────
 
   while (state.workType !== "quit") {
@@ -143,52 +189,129 @@ async function main() {
           state.planPath = "";
           state.projectDir = "";
           state.modifyTarget = "";
-          state.workType = "plan";
+          state.workType = "explain";
           break;
 
         // ── plan / modify ─────────────────────────────────────────────
         case "plan":
         case "modify": {
           const prevWorkType = state.workType;
+
+          // Read schema explanation when entering plan mode
+          let schemaExplanation = "";
+          if (prevWorkType !== "modify" && state.projectDir) {
+            try {
+              const sc = await readFilesFromList([
+                path.join(state.projectDir, "schema.md"),
+              ]);
+              schemaExplanation = sc[0] || "";
+            } catch {
+              /* schema.md not found — continue without */
+            }
+          }
+
           const result: PlanResult = await plan(
             provider,
             JSON.stringify(state.inputSchemas),
+            state.projectDir,
             prevWorkType === "modify" ? "modify" : undefined,
-            prevWorkType === "modify" ? state.modifyTarget : undefined
+            prevWorkType === "modify" ? state.modifyTarget : undefined,
+            schemaExplanation
           );
 
-          state.workType = result.worktype;
-          state.planPath = result.planPath || state.planPath;
-          state.projectDir = result.projectDir || state.projectDir;
+          // Auto-plan: when user types 'p' from modify mode, run planner directly
+          if (
+            result.worktype === "plan" &&
+            prevWorkType === "modify" &&
+            state.projectDir
+          ) {
+            let userPrompt = "";
+            try {
+              const prompts = await readFilesFromRecord({
+                prompts: ["user_prompt.md"],
+              });
+              userPrompt = prompts.join("\n");
+              console.log("[INFO] Auto-planning with user_prompt.md ...");
+            } catch {
+              console.log(
+                "[INFO] No user_prompt.md found; using empty prompt."
+              );
+            }
 
-          if (state.workType === "add" && result.addFiles?.length) {
-            state.inputSchemas = await addFiles(
-              result.addFiles,
-              state.inputSchemas
+            let schemaCtx = "";
+            try {
+              const sc = await readFilesFromList([
+                path.join(state.projectDir, "schema.md"),
+              ]);
+              schemaCtx = sc[0] || "";
+            } catch {
+              /* ignore */
+            }
+
+            const planResult = await runPlanner(
+              provider,
+              userPrompt,
+              JSON.stringify(state.inputSchemas),
+              state.projectDir,
+              schemaCtx
             );
-            state.workType = prevWorkType === "modify" ? "modify" : "plan";
+
+            if (planResult.planPath) {
+              state.planPath = planResult.planPath;
+              state.modifyTarget = planResult.planPath;
+              state.workType = "modify";
+              console.log(`[INFO] Plan created: ${planResult.planPath}`);
+            } else {
+              console.warn(
+                "[WARN] Auto-plan failed. Returning to modify mode."
+              );
+              state.workType = "modify";
+            }
+          } else {
+            state.workType = result.worktype;
+            state.planPath = result.planPath || state.planPath;
+            state.projectDir = result.projectDir || state.projectDir;
+
+            if (state.workType === "add" && result.addFiles?.length) {
+              state.inputSchemas = await addFiles(
+                result.addFiles,
+                state.inputSchemas
+              );
+              state.workType = prevWorkType === "modify" ? "modify" : "plan";
+            }
           }
           break;
         }
 
         // ── explain ───────────────────────────────────────────────────
         case "explain": {
-          if (!state.projectDir) {
-            console.warn("[WARN] No project directory; run 'plan' first.");
-            state.workType = "plan";
-          } else {
-            const planContents = await readFilesFromList([state.planPath]);
-            const schemaPath = await runExplainer(
-              provider,
-              JSON.stringify(state.inputSchemas),
-              planContents[0] || "",
-              state.projectDir
-            );
-            if (schemaPath) {
-              state.modifyTarget = schemaPath;
-              console.log(`[INFO] Now modifying: ${schemaPath}`);
-            }
+          // Auto-read user_prompt.md for project context
+          let userPrompt = "";
+          try {
+            const prompts = await readFilesFromRecord({ prompts: ["user_prompt.md"] });
+            userPrompt = prompts.join("\n");
+            console.log("[INFO] Read user_prompt.md for project context.");
+          } catch {
+            console.log("[INFO] No user_prompt.md found; continuing without.");
+          }
+
+          const result = await runExplainer(
+            provider,
+            JSON.stringify(state.inputSchemas),
+            userPrompt,
+            state.projectDir || undefined
+          );
+
+          if (result.schemaPath) {
+            state.projectDir = result.projectDir || state.projectDir;
+            state.planPath = planPathIn(state.projectDir);
+            state.modifyTarget = result.schemaPath;
+            console.log(`[INFO] Project dir: ${state.projectDir}`);
+            console.log(`[INFO] Now modifying: ${result.schemaPath}`);
             state.workType = "modify";
+          } else {
+            console.warn("[WARN] Explainer failed to produce output.");
+            state.workType = "quit";
           }
           break;
         }
@@ -256,7 +379,7 @@ async function main() {
           if (names.length > 0) {
             state.inputSchemas = await addFiles(names, state.inputSchemas);
           }
-          state.workType = "plan";
+          state.workType = "explain";
           break;
         }
 
@@ -272,7 +395,7 @@ async function main() {
       console.log(
         "[INFO] Continuing REPL — type 'new' to restart or 'q' to quit."
       );
-      state.workType = "plan";
+      state.workType = "explain";
     }
   }
 }

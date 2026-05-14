@@ -55,8 +55,9 @@ TASK
 
 ───────────────────────────────────────────────────────
 REUSABLE CODE FROM COMPLETED STEPS
-(Summaries of all prior outputs — code, articles, configs, etc.
-Use directly; do not rewrite or reimplement what already exists.)
+(Files created by prior steps. Do not recreate anything listed here.
+To call a function, import a module, or reference a type from these files,
+use readFile first — never guess names or signatures.)
 ───────────────────────────────────────────────────────
 <summarization, or "(no prior output — first iteration)">
 
@@ -149,74 +150,72 @@ All generated content goes in tool calls. The assistant message may contain only
 
 **Output directory:** Every file path passed to `createFileWithDirectories` MUST be relative to the directory specified in the prompt's `=== OUTPUT DIRECTORY ===` section.
 
+### 4.1.1 Self-Verification (Run Before Declaring Done)
+
+Before emitting the completion signal, verify your output actually works:
+
+1. **Run the code** — use `executeCommand` to execute what you created:
+   - Python: `{ "command": "python", "args": ["src/main.py"], "cwd": "<output-dir>" }`
+   - Node: `{ "command": "node", "args": ["src/index.js"], "cwd": "<output-dir>" }`
+   - Tests: `{ "command": "npm", "args": ["test"], "cwd": "<output-dir>" }`
+   - Type-check: `{ "command": "npx", "args": ["tsc", "--noEmit"], "cwd": "<output-dir>" }`
+   - Install deps: `{ "command": "pip", "args": ["install", "-r", "requirements.txt"], "cwd": "<output-dir>" }`
+
+2. **Fix failures** — if `exitCode !== 0` or stderr shows errors, read the error output,
+   fix the files that caused the failure, and re-run. Do NOT emit TASK_COMPLETE until
+   verification passes or you have exhausted reasonable fixes (document what you tried).
+
+3. **Always use the `args` array** — never embed arguments in the command string.
+   The `args` field is safer and required for correct execution without a shell.
+
+4. **Set `cwd`** to the output directory (from `=== OUTPUT DIRECTORY ===`) when running
+   scripts that reference relative paths or imported modules.
+
+5. **Respect timeouts** — default is 30s. Set a longer `timeout` only if needed.
+
+6. **Final step** — if this is the last step in the plan, also run the project's entry
+   point or full test suite to verify integration, not just individual files.
+
+### 4.1.2 Copying Input Files
+
+Use `copyFile` to bring raw data from `input_raw/` into the project:
+- `{ "sourcePath": "data.csv", "destPath": "data/data.csv" }`
+- Directories: `{ "sourcePath": "raw_data/", "destPath": "data/" }`
+
+`sourcePath` is relative to `input_raw/`, `destPath` is relative to the output directory.
+Always copy input data before processing it — do not read + rewrite manually.
+
 ### 4.2 Task-Completion Signal
 
 When `TASK` is fully satisfied, write the completion signal **in the assistant message** — no tool call. It has two parts:
 
-**Part 1 — Summarization** (detailed tool invocation summaries):
+**Part 1 — Summarization** (`<SUMMARIZATION>` XML tag):
 
-> ⚠️ **Wrap in XML tags: `<SUMMARIZATION>` (opening) and `</SUMMARIZATION>` (closing).**
-> The tag is case-insensitive: `<summarization>` is also accepted.
-
-Inside, write a **valid JSON array** containing one object per tool invocation.
-
-Each object in the array follows `ToolAnalysisResultSchema`:
-
-- `tool` — **actual tool name as invoked**
-- `purpose` — one sentence: what this invocation did
-- `request` — concise summary of inputs
-- Result variant — pick one (omit unused fields entirely):
-  - **Code** → `code_summary`: direct array of file objects (see rules below)
-  - **Prose / article / report** → `text_summary`: `{ overview, key_points, conclusion }`
-  - **Config / data / general** → `result`: plain string
-
-**`code_summary` rules:**
-
-- Each file has its own isolated scope — do NOT merge APIs across files.
-- Exclude all local variables; only `global` and `class_member` scoped variables.
-- `returns` — a string description of what the function returns (e.g. `"list of dicts with keys: name, value"`). Prefer a concise plain description over a complex structured type. If the type is simple, include it in the description.
-- `class` on API: optional — omit if not in a class.
-- `variables`: optional — omit if empty or only local variables exist.
-- `classes`: optional — omit if no classes are defined.
-- **Simplify when uncertain:** if a return type is complex or unclear, describe it in prose. A correct plain description is always better than an incorrect structured type.
-
-> ⚠️ **Evaluator verification:** An evaluator agent will read every file you claim to
-> create or modify and cross-reference its contents against your SUMMARIZATION. Every
-> API, variable, and class you list must exist in the actual file with the exact
-> signature you describe. File paths must be accurate. Claims that don't match the
-> files on disk will trigger a Critical Failure and automatic rejection.
-
-**Format — valid JSON array:**
+A valid JSON array listing what files were created:
 
 ```
 <SUMMARIZATION>
 [
   {
-    "tool": "...",
-    "purpose": "...",
-    "request": "...",
-    "code_summary": [ ... ]
-  },
-  {
-    "tool": "...",
-    "purpose": "...",
-    "request": "...",
-    "text_summary": { "overview": "...", "key_points": [...], "conclusion": "..." }
+    "purpose": "Created CSV loader and data cleaner modules.",
+    "files": [
+      { "path": "src/loader.py", "summary": "CSV loading with load_csv(filepath)" },
+      { "path": "src/cleaner.py", "summary": "Data cleaning pipeline with clean_rows()" }
+    ]
   }
 ]
 </SUMMARIZATION>
 ```
 
-If only one tool was used, still wrap it in an array: `[{ ... }]`.
+If only one file was created, still wrap `files` in an array.
 
-**Part 2 — Task completion note** (brief, human-readable):
+- `purpose` — one sentence: what this step accomplished overall
+- `files[].path` — **full relative path** exactly as passed to `createFileWithDirectories` (e.g. `"src/loader.py"`, not `"loader.py"`). The evaluator calls `readFile` with this path — a wrong path means the file won't be found.
+- `files[].summary` — one-line description including key exported names so subsequent steps know what's available without reading every file
 
-> ⚠️ **Wrap in XML tags: `<TASK_COMPLETE>` (opening) and `</TASK_COMPLETE>` (closing).**
-> Case-insensitive: `<task_complete>` is also accepted.
+**Part 2 — Task completion note** (`<TASK_COMPLETE>` XML tag):
 
-Inside, write a short plain-text description of what the generator did in this task — a few words per action, e.g. which files were created and where.
-
-**Format:**
+Short plain-text description of what was done:
 
 ```
 <TASK_COMPLETE>
@@ -224,12 +223,11 @@ Created loader.py and cleaner.py in src/; wrote remote_work_report.md in docs/
 </TASK_COMPLETE>
 ```
 
-**Signal rules (both parts):**
+**Signal rules:**
 - `<SUMMARIZATION>` contains a valid JSON array — no prose, no extra markers.
 - `<TASK_COMPLETE>` contains only a short plain-text description — no JSON.
-- Omit optional JSON fields; do not set to `null`. Empty arrays → `[]`. Unknown types → `"unknown"`.
 - Do not call any tool in the same response.
-- Do not emit unless `TASK` is genuinely complete — premature signal halts the pipeline.
+- Do not emit unless `TASK` is genuinely complete.
 
 ---
 
@@ -370,40 +368,11 @@ def column_with_highest_mean(filepath: str | Path) -> str:
 <SUMMARIZATION>
 [
   {
-    "tool": "createFileWithDirectories",
-    "purpose": "Write the CSV loading module for the CLI.",
-    "request": "Create loader.py with load_csv() as specified in TASK.",
-    "code_summary": [
-      {
-        "file": { "file_name": "loader.py", "relative_path": "loader.py", "summary": "CSV loading module." },
-        "apis": [
-          {
-            "name": "load_csv",
-            "description": "Reads a CSV file and returns its rows as a list of dicts.",
-            "parameters": [{ "name": "filepath", "type": "str | Path", "description": "Path to the CSV file." }],
-            "returns": "list of dicts — each dict is a CSV row with string keys and string values",
-            "visibility": "public"
-          }
-        ],
-        "variables": [],
-        "classes": []
-      }
+    "purpose": "Created CSV loader module and remote work report.",
+    "files": [
+      { "path": "src/loader.py", "summary": "CSV loading with load_csv(filepath)" },
+      { "path": "docs/remote_work_report.md", "summary": "Research report on remote work productivity" }
     ]
-  },
-  {
-    "tool": "createFileWithDirectories",
-    "purpose": "Write the research report on remote work productivity.",
-    "request": "Produce a structured markdown report as specified in TASK.",
-    "text_summary": {
-      "overview": "The report argues that remote work structurally improves productivity through commute elimination, environment control, and autonomy-driven engagement, supported by empirical evidence.",
-      "key_points": [
-        "Commute elimination reclaims ~1 hour/day for focused work.",
-        "Stanford study: 13% productivity lift among remote workers.",
-        "Schedule autonomy increases discretionary effort per self-determination theory.",
-        "Collaboration concerns are addressable via async tooling and off-hours norms."
-      ],
-      "conclusion": "Remote work's gains are structural — organisations that adopt it remove friction from their most valuable resource."
-    }
   }
 ]
 </SUMMARIZATION>

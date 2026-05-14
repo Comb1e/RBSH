@@ -75,9 +75,7 @@ export async function handleToolExecution(
           throw new Error(`Tool "${call.name}" is missing a validation schema`);
         }
         const validatedArgs = toolDef.schema.parse(rawArgs);
-
         const output = await toolDef.execute(validatedArgs);
-
         return {
           toolCallId: call.id,
           name: call.name,

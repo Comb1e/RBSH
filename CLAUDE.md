@@ -5,10 +5,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 ```bash
-npx tsx main.ts plan              # enter plan REPL (create/modify project plans)
-npx tsx main.ts excute            # run harness on existing plan
-npx tsx main.ts --add file.xlsx plan  # preprocess specific files, then plan
-npx tsc --noEmit                  # type-check only (no emit)
+npx tsx main.ts explain project-name         # default: explain data → modify schema → plan → modify plan → execute
+npx tsx main.ts explain project-name --add file.xlsx  # preprocess files, then explain
+npx tsx main.ts plan project-name            # skip explain, go straight to plan (still reads schema.md if present)
+npx tsx main.ts execute project-name         # run harness on existing plan
+npx tsc --noEmit                             # type-check only (no emit)
 ```
 
 There is no test suite or linter configured. `npm start` runs `npx tsx agent.ts` (a standalone agent invocation not related to the main harness flow).
@@ -19,13 +20,17 @@ RBSH is a GAN-inspired **harness engineering pipeline**: a Generator produces ou
 
 ### Entry point and REPL (`main.ts`)
 
-`main.ts` parses CLI args and runs a dispatch loop (`plan` → `excute`/`generate` → `quit`). The `--add` flag triggers `dataPreprocess()` to extract schemas from files in `input_raw/` (Excel via `xlsx`, plain text wrapped in JSON envelopes) and write them to `output_schemas/`. Schemas are only loaded from files explicitly added via `--add` — there is no automatic bulk loading.
+`main.ts` parses CLI args and runs a dispatch loop (`explain` → `modify` → `plan` → `modify` → `execute` → `quit`). The `--add` flag triggers `dataPreprocess()` to extract schemas from files in `input_raw/` (Excel via `xlsx`, plain text wrapped in JSON envelopes) and write them to `output_schemas/`. Schemas are only loaded from files explicitly added via `--add` — there is no automatic bulk loading.
+
+### Explain phase (`agent/explainer.ts`)
+
+`runExplainer()` produces a data dictionary (`schema.md`) classifying every sheet, column, and cross-sheet relationship in the input data. It runs first in the default workflow so downstream phases (plan, execute) can reference the schema explanation. After writing `schema.md`, the REPL enters modify mode for the user to refine the explanation.
 
 ### Plan phase (`agent/plan.ts`, `agent/planner.ts`)
 
-The plan REPL takes user input. First input → `runPlanner()` creates `<PLAN_DOCUMENT>` with four required sections (Project Overview, Technical Stack, Module Division, Development Timeline) written to `./output/plan/<name>-plan.md`. Subsequent inputs → `runModifier()` applies surgical edits to the existing plan. The planner itself comprehends input schemas (no separate comprehension agent) — see `skills/planner.md` for the schema comprehension steps.
+The plan REPL takes user input. First input → `runPlanner()` creates `<PLAN_DOCUMENT>` with four required sections (Project Overview, Technical Stack, Module Division, Development Timeline) written to `./output/<project-name>/plan.md`. The planner receives the explainer's `schema.md` output as context, giving it data understanding before creating the plan. Subsequent inputs → `runModifier()` applies surgical edits to the existing plan.
 
-Special commands in the REPL: `e` (switch to execute mode), `q` (quit), `add`/`--add <files>` (add input files), `new` (restart plan).
+Special commands in the REPL: `e` (execute), `q` (quit), `p` (proceed to plan phase), `c` (re-run explainer), `add`/`--add <files>` (add input files), `new` (restart).
 
 ### Execute phase (`agent/harness.ts`)
 

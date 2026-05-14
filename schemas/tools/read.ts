@@ -8,12 +8,15 @@ export const ReadFileArgsSchema = z.object({
   filePath: z
     .string()
     .min(1, "File path must not be empty")
-    .refine((p) => !p.includes(".."), "Path must not contain '..' segments"),
-  startLine: z.number().int().positive().optional(),
+    .refine((p) => !p.includes(".."), "Path must not contain '..' segments")
+    .describe(
+      "Relative path to the file or directory (e.g. 'src/auth.js' or '.'). No leading slash, no '..'."
+    ),
+  startLine: z.number().int().min(0).optional(),
   endLine: z
     .number()
     .int()
-    .positive()
+    .min(0)
     .max(10000, "endLine must be ≤ 10000 for context safety")
     .optional(),
 });
@@ -29,8 +32,8 @@ export const ReadFileResultSchema = z.discriminatedUnion("success", [
     success: z.literal("read_file_success"),
     type: z.literal("file"),
     path: z.string(),
-    startLine: z.number().int().positive(),
-    endLine: z.number().int().positive(),
+    startLine: z.number().int().nonnegative(),
+    endLine: z.number().int().nonnegative(),
     content: z.string(),
     linesReturned: z.number().int().nonnegative(),
     warning: z.string().optional(),

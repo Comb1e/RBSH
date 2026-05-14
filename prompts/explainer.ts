@@ -2,7 +2,7 @@ import type { AgentMessage } from "@/types/index.js";
 
 export async function getExplainerPrompt(
   inputSchemas: string,
-  planContext: string
+  taskDescription: string
 ): Promise<AgentMessage[]> {
   const systemPrompt = `
 === INSTRUCTIONS ===
@@ -13,8 +13,12 @@ skill to classify sheets, assign column roles, and trace relationships.
 
 Do NOT solve the problem. Do NOT write code. Only explain what the data means.
 
+If you are not given a project name, generate an appropriate snake_case project
+name based on the user's task description and the input data. Output it on the
+very first line as: <PROJECT_NAME>the_project_name</PROJECT_NAME>
+
 === PROJECT CONTEXT ===
-${planContext || "(no plan yet)"}
+${taskDescription || "(no task description provided)"}
   `.trim();
 
   const userPrompt = `

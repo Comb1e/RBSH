@@ -18,19 +18,7 @@ export function plannerParseResponse(raw: string): ParsedPlan {
   }
   const envelope = envelopeMatch[1];
 
-  // 2. Filename
-  const filenameMatch = envelope.match(
-    /<FILENAME>\s*([\w][\w\-]*\.md)\s*<\/FILENAME>/i
-  );
-  if (!filenameMatch) {
-    throw new Error(
-      "Could not extract a valid <FILENAME>…</FILENAME> tag. " +
-        "It must contain a kebab-case filename ending in .md, with no path separators."
-    );
-  }
-  const filename = filenameMatch[1].trim();
-
-  // 3. Markdown body
+  // 2. Markdown body
   const markdownMatch = envelope.match(/<MARKDOWN>([\s\S]*?)<\/MARKDOWN>/);
   if (!markdownMatch) {
     throw new Error(
@@ -39,7 +27,7 @@ export function plannerParseResponse(raw: string): ParsedPlan {
   }
   const markdown = markdownMatch[1].trim();
 
-  // 4. Required section headers
+  // 3. Required section headers
   const requiredSections = [
     "## 1. Project Overview",
     "## 2. Technical Stack",
@@ -97,7 +85,7 @@ export function plannerParseResponse(raw: string): ParsedPlan {
     );
   }
 
-  return { filename, markdown };
+  return { markdown };
 }
 
 // ── Step extraction ───────────────────────────────────────────────────────────

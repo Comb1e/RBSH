@@ -82,11 +82,17 @@ const TextSummarySchema = z.object({
   conclusion: z.string().describe("The final conclusion or takeaway."),
 });
 
+const FileEntrySchema = z.object({
+  path: z.string(),
+  summary: z.string(),
+});
+
 export const ToolAnalysisResultSchema = z.object({
-  tool: z.string(),
+  tool: z.string().optional(),
   purpose: z.string().optional().default(""),
   request: z.string().optional().default(""),
   result: z.string().optional(),
+  files: z.array(FileEntrySchema).optional(),
   code_summary: z.array(FileSchema).optional(),
   text_summary: TextSummarySchema.optional(),
 });

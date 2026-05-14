@@ -11,12 +11,13 @@ import { LLMProvider, PlanResult } from "@/types/index.js";
 export async function plan(
   provider: LLMProvider,
   inputSchemasString: string,
+  projectDir: string,
   initialWorkType?: string,
-  initialModifyTarget?: string
+  initialModifyTarget?: string,
+  schemaExplanation?: string
 ): Promise<PlanResult> {
   console.log("[INFO] Starting plan...");
   let planPath: string = "";
-  let projectDir: string = "";
   let modifyTarget: string = initialModifyTarget || "";
   let workType: string = initialWorkType || "plan";
 
@@ -27,7 +28,6 @@ export async function plan(
       if (cmd !== "" && cmd !== "modify") {
         if (cmd === "new") {
           planPath = "";
-          projectDir = "";
           modifyTarget = "";
           workType = "plan";
           continue;
@@ -64,10 +64,9 @@ export async function plan(
     console.log("[INFO] user prompt: ", userPrompt);
     console.log("[INFO] Starting planner...");
 
-    const result = await runPlanner(provider, userPrompt, inputSchemasString);
+    const result = await runPlanner(provider, userPrompt, inputSchemasString, projectDir, schemaExplanation);
     if (result.planPath) {
       planPath = result.planPath;
-      projectDir = result.projectDir;
       modifyTarget = planPath; // after plan, modify plan.md
       console.log(`[INFO] Plan created: ${planPath}`);
       workType = "modify";

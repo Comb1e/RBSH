@@ -1,9 +1,33 @@
 import type { HandoffArtifact, AgentMessage } from "@/types/index.js";
+import type { ToolAnalysisResult } from "@/schemas/index.js";
 import { readFilesFromRecord } from "@/utils/get_params.js";
 
 const generatorBase = {
   skills: ["generator.md", "user_preferences.md"],
 };
+
+function renderPriorContext(summaries: ToolAnalysisResult[]): string {
+  if (!summaries.length) return "(no prior code — first iteration)";
+
+  const files: string[] = [];
+  for (const s of summaries) {
+    if (s.files) {
+      for (const f of s.files) {
+        files.push(`- \`${f.path}\` — ${f.summary}`);
+      }
+    }
+    if (s.code_summary) {
+      for (const f of s.code_summary) {
+        const fp = f.file.relative_path || f.file.file_name;
+        files.push(`- \`${fp}\` — ${f.file.summary || s.purpose || ""}`);
+      }
+    }
+  }
+
+  return files.length > 0
+    ? `Files from completed steps (use readFile to inspect before importing):\n${files.join("\n")}`
+    : `Completed steps: ${summaries.map((s) => s.purpose).filter(Boolean).join("; ") || "(no details)"}`;
+}
 
 export async function createGeneratorBaseMessage(
   artifact: HandoffArtifact,
@@ -74,10 +98,7 @@ export async function createGeneratorBaseMessage(
   SUMMARIZATION OF COMPLETED STEPS
   (Use this directly — do not rewrite what already exists)
   ───────────────────────────────────────────────────────
-  ${
-    JSON.stringify(artifact.preToolSummarize) ||
-    "(no prior code — first iteration)"
-  }
+  ${renderPriorContext(artifact.preToolSummarize)}
 
   ───────────────────────────────────────────────────────
   KEY INFORMATION FROM PREVIOUS CODE WRITING

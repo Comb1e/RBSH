@@ -5,10 +5,7 @@ OUTPUT FORMAT — FOLLOW THIS EXACTLY
 Your entire response MUST be enclosed in <PLAN_DOCUMENT> … </PLAN_DOCUMENT> tags.
 Inside those tags you must produce:
 
-1. A <FILENAME> tag containing ONLY a kebab-case filename ending in ".md".
-   Example: <FILENAME>real-time-chat-app-plan.md</FILENAME>
-
-2. A <MARKDOWN> tag containing the full Markdown document with these EXACT
+1. A <MARKDOWN> tag containing the full Markdown document with these EXACT
    top-level sections in this EXACT order (use the heading text verbatim):
 
    # Project Plan: {Project Title}

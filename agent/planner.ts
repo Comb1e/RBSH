@@ -8,20 +8,12 @@ import { getPlannerPrompt } from "@/prompts/index.js";
 import { env } from "../config/env.js";
 import { plannerParseResponse, writePlanFile } from "@/utils/index.js";
 
-/**
- * Derives a project directory name from the plan filename.
- *   "power-system-plan.md"  →  "power-system"
- *   "analysis.md"           →  "analysis"
- */
-export function projectNameFromPlan(filename: string): string {
-  const base = filename.replace(/\.md$/i, "");
-  return base.endsWith("-plan") ? base.slice(0, -5) : base;
-}
-
 export async function runPlanner(
   provider: LLMProvider,
   background: string,
-  inputSchemaDescription: string
+  inputSchemaDescription: string,
+  projectDir: string,
+  schemaExplanation?: string
 ): Promise<{ planPath: string; projectDir: string }> {
   console.log("\n╔══════════════════════════════╗");
   console.log("║  PLANNER AGENT               ║");
@@ -29,7 +21,8 @@ export async function runPlanner(
 
   const unifiedPrompt = await getPlannerPrompt(
     background,
-    inputSchemaDescription
+    inputSchemaDescription,
+    schemaExplanation
   );
 
   let raw = "";
@@ -50,8 +43,6 @@ export async function runPlanner(
 
   try {
     const plan: ParsedPlan = plannerParseResponse(raw);
-    const projectName = projectNameFromPlan(plan.filename);
-    const projectDir = `./output/${projectName}`;
     const planPath = writePlanFile("plan.md", plan.markdown, projectDir);
     return { planPath, projectDir };
   } catch {

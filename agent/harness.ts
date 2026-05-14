@@ -62,7 +62,8 @@ async function generatorEvaluatorLoop(
       artifact.task,
       draft,
       schemaDescription,
-      artifact.preToolSummarize
+      artifact.preToolSummarize,
+      toolSummarization
     );
 
     const scoreResult: ScoreExtractionResult = extractOverallScore(
@@ -174,6 +175,42 @@ export async function runHarness(
     }
   }
 
+  // 5.5 Final project verification — try to run the whole project
+  if (artifact.preToolSummarize.length > 0) {
+    console.log(`\n${"─".repeat(60)}`);
+    console.log("FINAL VERIFICATION: Checking project executes");
+    console.log("─".repeat(60));
+
+    const verifyTask = [
+      "Verify the entire project works correctly:",
+      "- Identify the entry point from the plan or generated files",
+      "- Run the project (e.g. python main.py, node src/index.js, npm start)",
+      "- If tests exist, run them",
+      "- If the project processes data, test with sample input",
+      "- Fix any failures and re-verify",
+      "- Report what you checked and the final result",
+    ].join("\n");
+
+    const verifyResult = await generatorEvaluatorLoop(
+      provider,
+      plan,
+      {
+        task: verifyTask,
+        completedSteps: [],
+        remainingSteps: [],
+        preToolSummarize: artifact.preToolSummarize,
+        iterationCount: 0,
+      },
+      schemaDescription,
+      plan,
+      outputDir
+    );
+
+    if (verifyResult.toolSummarization) {
+      artifact.preToolSummarize.push(...verifyResult.toolSummarization);
+    }
+  }
+
   // 6. Final summary
   console.log("\n" + "═".repeat(60));
   console.log("  FINAL OUTPUT");
@@ -181,63 +218,37 @@ export async function runHarness(
 
   const allSummaries = artifact.preToolSummarize;
   if (allSummaries.length > 0) {
-    const files = new Map<
-      string,
-      { summary: string; apis: string[]; variables: string[]; classes: string[] }
-    >();
+    const fileSet = new Map<string, string>(); // path → summary
 
     for (const s of allSummaries) {
+      if (s.files) {
+        for (const f of s.files) {
+          if (!fileSet.has(f.path)) fileSet.set(f.path, f.summary);
+        }
+      }
       if (s.code_summary) {
         for (const f of s.code_summary) {
-          const key = f.file.relative_path || f.file.file_name;
-          if (!files.has(key)) {
-            files.set(key, {
-              summary: f.file.summary || "",
-              apis: [],
-              variables: [],
-              classes: [],
-            });
-          }
-          const entry = files.get(key)!;
-          for (const api of f.apis || []) {
-            entry.apis.push(`  ${api.name}(${(api.parameters || []).map((p) => p.name).join(", ")}) → ${typeof api.returns === "string" ? api.returns : (api.returns as any)?.description || ""}`);
-          }
-          for (const v of f.variables || []) {
-            entry.variables.push(`  ${v.name}: ${v.type} (${v.scope})`);
-          }
-          for (const c of f.classes || []) {
-            entry.classes.push(`  class ${c.name} — ${c.description || ""}`);
-          }
+          const fp = f.file.relative_path || f.file.file_name;
+          if (!fileSet.has(fp)) fileSet.set(fp, f.file.summary || "");
         }
       }
     }
 
-    if (files.size > 0) {
-      console.log(`\n  ${files.size} file(s) created:\n`);
-      for (const [path, info] of files) {
+    if (fileSet.size > 0) {
+      console.log(`\n  ${fileSet.size} file(s) created:\n`);
+      for (const [path, summary] of fileSet) {
         console.log(`  📄 ${path}`);
-        if (info.summary) console.log(`     ${info.summary}`);
-        if (info.classes.length > 0) {
-          console.log(`     Classes:`);
-          info.classes.forEach((c) => console.log(c));
-        }
-        if (info.apis.length > 0) {
-          console.log(`     Functions:`);
-          info.apis.forEach((a) => console.log(a));
-        }
-        if (info.variables.length > 0) {
-          console.log(`     Variables:`);
-          info.variables.forEach((v) => console.log(v));
-        }
+        if (summary) console.log(`     ${summary}`);
         console.log("");
       }
     } else {
-      // Text or config output
       for (const s of allSummaries) {
         if (s.text_summary) {
           console.log(`\n  📝 ${s.purpose || "Report"}: ${s.text_summary.overview || ""}`);
         } else if (s.result) {
           console.log(`\n  ⚙ ${s.purpose || "Result"}: ${s.result}`);
+        } else if (s.purpose) {
+          console.log(`\n  ✓ ${s.purpose}`);
         }
       }
     }

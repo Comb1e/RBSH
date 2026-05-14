@@ -7,7 +7,8 @@ const plannerBase = {
 
 export async function getPlannerPrompt(
   projectDescription: string,
-  inputSchemaDescription: string
+  inputSchemaDescription: string,
+  schemaExplanation?: string
 ): Promise<AgentMessage[]> {
   const basicSkills = await readFilesFromRecord(plannerBase);
 
@@ -28,6 +29,7 @@ export async function getPlannerPrompt(
 
   Produce the full <PLAN_DOCUMENT> now.
 
+  ${schemaExplanation ? `### Schema Explanation (from Explainer)\n${schemaExplanation}\n` : ""}
   Input Schema: ${inputSchemaDescription}
     `.trim();
   return [
