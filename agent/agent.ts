@@ -7,7 +7,7 @@ import type {
 } from "@/types/index.js";
 import { env } from "../config/env.js";
 import { handleToolExecution } from "@/tools/index.js";
-import { executeCommand } from "../tools/scripts/exec.js";
+import { executeCommand, setExecuteDefaultCwd } from "../tools/scripts/exec.js";
 import {
   extractTaskCompleteContent,
   extractSummarizationContent,
@@ -16,6 +16,7 @@ import {
 import { parseMultipleToolResults } from "@/schemas/index.js";
 import type { ToolAnalysisResult } from "@/schemas/index.js";
 import * as path from "node:path";
+import * as fs from "node:fs/promises";
 
 // ── Auto-verification: entry point detection ──────────────────────────────────
 
@@ -88,6 +89,71 @@ function buildAutoVerifyFailureMessage(
   return lines.join("\n");
 }
 
+// ── Auto-verification: type-check ────────────────────────────────────
+
+async function runTypeCheck(
+  files: { path: string }[],
+  outputDir: string
+): Promise<{ passed: boolean; message: string } | null> {
+  const hasTypeScript = files.some((f) => {
+    const ext = path.extname(f.path).toLowerCase();
+    return ext === ".ts" || ext === ".tsx";
+  });
+  if (!hasTypeScript) {
+    console.log("[AUTO-VERIFY] No TypeScript files found — skipping type-check.");
+    return null;
+  }
+
+  try {
+    await fs.access(path.join(outputDir, "tsconfig.json"));
+  } catch {
+    console.log(
+      "[AUTO-VERIFY] TypeScript files found but no tsconfig.json — skipping type-check."
+    );
+    return null;
+  }
+
+  console.log("[AUTO-VERIFY] Running type-check (npx tsc --noEmit)...");
+  try {
+    const result = await executeCommand({
+      command: "npx",
+      args: ["tsc", "--noEmit"],
+      cwd: outputDir,
+      timeout: 60000,
+      shell: false,
+      maxBuffer: 10 * 1024 * 1024,
+    });
+
+    const passed = result.exitCode === 0 && !result.timedOut;
+
+    if (passed) {
+      console.log("[AUTO-VERIFY] Type-check passed.");
+      return { passed: true, message: "" };
+    }
+
+    const lines = [
+      "AUTO-VERIFICATION: Type-check failed.",
+      "",
+      "Command: npx tsc --noEmit",
+      `  (cwd: ${outputDir})`,
+      "",
+      "Fix the type errors above. You will NOT be allowed to complete until type-check passes.",
+    ];
+    if (result.stdout) {
+      lines.push("", "Stdout:", result.stdout.slice(0, 3000));
+    }
+    if (result.stderr) {
+      lines.push("", "Stderr:", result.stderr.slice(0, 1000));
+    }
+    return { passed: false, message: lines.join("\n") };
+  } catch (err) {
+    console.log(
+      `[AUTO-VERIFY] Could not run tsc (${(err as Error).message}) — skipping type-check.`
+    );
+    return null;
+  }
+}
+
 export async function runAgent(
   provider: LLMProvider,
   agentMessages: AgentMessage[],
@@ -95,6 +161,9 @@ export async function runAgent(
   role: string,
   outputDir?: string
 ): Promise<AgentCompletionResult> {
+  if (outputDir) {
+    setExecuteDefaultCwd(outputDir);
+  }
   let summarizeResults: ToolAnalysisResult[] = [];
   let allExecution: UnifiedToolResult[] = [];
   let evaluatorUseStr: string[] = [];
@@ -159,6 +228,17 @@ export async function runAgent(
           // ── Auto-verification for Generator ──────────────────────────
           if (role === "Generator" && outputDir) {
             const allFiles = summarization.flatMap((s) => s.files ?? []);
+
+            // Type-check before execution — type errors make execution moot.
+            const typeCheckResult = await runTypeCheck(allFiles, outputDir);
+            if (typeCheckResult && !typeCheckResult.passed) {
+              console.log(
+                `\n[AUTO-VERIFY] Type-check failed. Injecting feedback.`
+              );
+              agentMessages.push({ role: "user", content: typeCheckResult.message });
+              continue;
+            }
+
             const entryPoint = findEntryPoint(allFiles);
             if (entryPoint) {
               try {

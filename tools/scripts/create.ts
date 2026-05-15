@@ -68,6 +68,8 @@ export const createFileWithDirectoriesTool: ToolDefinition<
       throw new Error("createFileWithDirectories: args is required.");
     }
 
+    console.log(`[createFileWithDirectories] ${args.filePath}`);
+
     // Decode base64 content (case-insensitive prefix)
     const base64Match = args.content.match(/^base64:(.+)$/i);
     const finalContent = base64Match
@@ -78,13 +80,19 @@ export const createFileWithDirectoriesTool: ToolDefinition<
     const mode = args.options?.mode ?? 0o644;
     const overwrite = args.options?.overwrite ?? true;
 
-    return createFileWithDirectories(
-      args.filePath,
-      finalContent as string | Buffer,
-      {
-      encoding,
-      mode,
-      overwrite,
-    });
+    try {
+      const result = await createFileWithDirectories(
+        args.filePath,
+        finalContent as string | Buffer,
+        { encoding, mode, overwrite }
+      );
+      console.log(`[createFileWithDirectories] Created ${args.filePath}`);
+      return result;
+    } catch (err) {
+      console.log(
+        `[createFileWithDirectories] FAILED: ${args.filePath} — ${(err as Error).message}`
+      );
+      throw err;
+    }
   },
 };

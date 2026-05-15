@@ -7,6 +7,7 @@ interface SheetInfo {
     headerName: string;
     inferredType: string;
     isAlwaysEmpty: boolean;
+    examples?: string[];
   }[];
 }
 
@@ -38,6 +39,7 @@ export function buildColumnScaffolding(schemasJson: string): {
                   headerName?: string;
                   inferredType?: string;
                   isAlwaysEmpty?: boolean;
+                  examples?: unknown[];
                 }[];
               };
               if (sheet.sheetName && Array.isArray(sheet.columns)) {
@@ -45,10 +47,16 @@ export function buildColumnScaffolding(schemasJson: string): {
                 const columns = sheet.columns.map((c) => {
                   const name = c.headerName || "(unnamed)";
                   knownColumns.add(name);
+                  const examples = Array.isArray(c.examples)
+                    ? c.examples.filter(
+                        (e): e is string => typeof e === "string"
+                      )
+                    : undefined;
                   return {
                     headerName: name,
                     inferredType: c.inferredType || "unknown",
                     isAlwaysEmpty: !!c.isAlwaysEmpty,
+                    examples,
                   };
                 });
                 sheets.push({ sheetName: sheet.sheetName, columns });
@@ -70,12 +78,15 @@ export function buildColumnScaffolding(schemasJson: string): {
     for (const sheet of sheets) {
       lines.push(`### Sheet: \`${sheet.sheetName}\``);
       lines.push("");
-      lines.push("| Column | Type | Meaning | Role | Caveats |");
-      lines.push("|--------|------|---------|------|---------|");
+      lines.push("| Column | Type | Examples | Meaning | Role | Caveats |");
+      lines.push("|--------|------|----------|---------|------|---------|");
 
       for (const col of sheet.columns) {
         const typeHint = col.isAlwaysEmpty ? "empty" : col.inferredType;
-        lines.push(`| \`${col.headerName}\` | ${typeHint} | | | |`);
+        const exStr = col.examples?.length
+          ? col.examples.slice(0, 5).join(", ")
+          : "—";
+        lines.push(`| \`${col.headerName}\` | ${typeHint} | ${exStr} | | | |`);
       }
       lines.push("");
     }
@@ -114,6 +125,7 @@ For each sheet above:
 1. Classify the sheet's role (add it next to the sheet name, e.g. "### Sheet: nodes (FACT)")
 2. Fill in Meaning, Role, and Caveats for every column row
 3. Refine the Type column where the inferred type is wrong or too vague
+4. Pay attention to the Examples column — these are real sampled values from the data. Use them to refine types, disambiguate column meaning, and infer roles. For example, values ["0","1"] in an ambiguous column suggest boolean semantics.
 
 At the end, add:
 ## Cross-Sheet Relationships

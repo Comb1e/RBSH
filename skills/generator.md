@@ -19,17 +19,17 @@ Content written into the assistant message will be ignored or cause a pipeline e
 Every task follows this pipeline. Do NOT skip phases — the harness enforces
 execution (Phase 5) and will reject your completion if the entry point fails.
 
-| # | Phase | Action | Must pass? |
-|---|-------|--------|-----------|
-| 1 | **Read** | Read files from COMPLETED STEPS only (prior generator output). Skip `plan.md`, `schema.md`, and `./input_data/` — already in the prompt. If no completed steps, skip this phase. | — |
-| 2 | **Plan** | Silent: decide files, functions, imports. Never guess prior code — use `readFile`. | — |
-| 3 | **Create** | Write files with `createFileWithDirectories`. Include `if __name__` self-tests in every module (real asserts, no stubs). Entry point + README last. | Yes |
-| 4 | **Test** | Verify each module has a runnable `if __name__` block with real assertions using real data. | Yes |
-| 5 | **Execute** | Run entry point with `executeCommand`. Check exitCode, stderr, `diagnostics.errors`. | Yes |
-| 6 | **Fix** | If execution fails: read error, fix surgically with `replaceInFile`, test snippet with `python -c`, re-execute. Repeat until exit 0, no diagnostics errors. | Yes |
-| 7 | **Output** | Emit `<SUMMARIZATION>` + `<TASK_COMPLETE>`. No tool calls in same response. | — |
+| #   | Phase       | Action                                                                                                                                                                           | Must pass? |
+| --- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| 1   | **Read**    | Read files from COMPLETED STEPS only (prior generator output). Skip `plan.md`, `schema.md`, and `./input_data/` — already in the prompt. If no completed steps, skip this phase. | —          |
+| 2   | **Plan**    | Silent: decide files, functions, imports. Never guess prior code — use `readFile`.                                                                                               | —          |
+| 3   | **Create**  | Write files with `createFileWithDirectories`. Include `if __name__` self-tests in every module (real asserts, no stubs). Entry point + README last.                              | Yes        |
+| 4   | **Test**    | Verify each module has a runnable `if __name__` block with real assertions using real data.                                                                                      | Yes        |
+| 5   | **Execute** | Type-check (`npx tsc --noEmit` for TS projects), then run entry point with `executeCommand`. Check exitCode, stderr, `diagnostics.errors`.                                       | Yes        |
+| 6   | **Fix**     | If execution fails: read error, fix surgically with `executeCommand` (sed, echo, etc.), test snippet with `python -c`, re-execute. Repeat until exit 0, no diagnostics errors. | Yes        |
+| 7   | **Output**  | Emit `<SUMMARIZATION>` + `<TASK_COMPLETE>`. No tool calls in same response.                                                                                                      | —          |
 
-Phases 5-6 loop until the entry point runs cleanly. The harness will re-verify
+Phases 5-6 loop until type-check and the entry point pass cleanly. The harness will re-verify
 after you output — if it fails, your completion is rejected.
 
 ---
@@ -164,7 +164,7 @@ When you call `readFile` to inspect a file and the result is an error (ENOENT, p
 
 ## 4. Output Delivery and Task-Completion Signal
 
-### 4.1 Tool delivery  (→ Workflow Phases 3-6)
+### 4.1 Tool delivery (→ Workflow Phases 3-6)
 
 All generated content goes in tool calls. The assistant message may contain only a brief preamble (≤ 1 sentence). Apply Section 1 language/type logic to the tool's type parameter. Do not echo content in the assistant message after the call.
 
@@ -177,6 +177,11 @@ All generated content goes in tool calls. The assistant message may contain only
 **The harness auto-runs your entry point when you declare `<TASK_COMPLETE>`.** If execution
 fails, you will see the error and must fix it — the completion will be rejected until the
 code runs successfully. Save yourself an iteration by verifying first:
+
+0. **Type-check first** — before running anything, type-check TypeScript projects:
+
+   - `{ "command": "npx", "args": ["tsc", "--noEmit"], "cwd": "<output-dir>" }`
+   - Fix any type errors before moving to execution. The harness will also enforce this — if type-check fails, your completion is rejected.
 
 1. **Run the entry point yourself** using `executeCommand` before declaring done.
 
@@ -205,18 +210,18 @@ code runs successfully. Save yourself an iteration by verifying first:
 When auto-verification or your own test run shows an error, fix the specific problem —
 do NOT rewrite the entire file for a one-line bug:
 
-1. **Use `replaceInFile`** for targeted fixes — wrong variable name, missing import,
+1. **Use `executeCommand` with sed/echo** for targeted fixes — wrong variable name, missing import,
    incorrect argument, broken assertion. Read the file first with `readFile`, then
-   replace only the broken line(s). Provide enough context in `oldString` to make it unique.
+   replace only the broken line(s). Provide enough context to make the match unique.
 
 2. **Test snippets with `executeCommand`** before committing a fix to disk:
 
    - `{ "command": "python", "args": ["-c", "from src.loader import load_csv; print(load_csv('./input_data/test.csv').head())"], "cwd": "<output-dir>" }`
    - `{ "command": "node", "args": ["-e", "const m = require('./src/module'); console.log(m.fn('test'))"], "cwd": "<output-dir>" }`
-     If the snippet works, apply the fix with `replaceInFile`. If not, iterate.
+     If the snippet works, apply the fix with `executeCommand`. If not, iterate.
 
 3. **Use `createFileWithDirectories`** only for new files or when more than ~30% of a
-   file needs to change. Prefer `replaceInFile` for line-level fixes — it is faster and
+   file needs to change. Prefer surgical `executeCommand` edits for line-level fixes — it is faster and
    avoids introducing new bugs elsewhere in the file.
 
 ### 4.1.2 Input Files

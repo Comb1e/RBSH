@@ -24,9 +24,8 @@ call `readFile` on every claimed file before scoring.
 | # | Phase | Action | Ref |
 |---|-------|--------|-----|
 | 1 | **Read** | Read files in `## Files to Verify` only (generator-created output). Skip `plan.md`, `schema.md`, and `./input_data/` — already in prompt. If no files listed, skip this phase. | Step 1 |
-| 2 | **Execute** | Run the code. Check exitCode, stderr, `diagnostics.errors`, scan stdout for error output. Skip only for non-executable files. | Step 1, Step 4 |
-| 3 | **Verify** | Check inline self-tests in every module. Check schema compliance. Check critical failures. Identify task type. | Step 2, Step 4, Step 5 |
-| 4 | **Score** | Apply rubric. Output `<TASK_COMPLETE>` with evaluation. Pass if ≥ 3.2 and no critical failures. | Step 3, Step 6 |
+| 2 | **Verify** | Check inline self-tests in every module. Check schema compliance. Check code quality: correctness, completeness, safety, clarity. Check critical failures. Identify task type. | Step 2, Step 3, Step 4 |
+| 3 | **Score** | Apply rubric. Output `<TASK_COMPLETE>` with evaluation. Pass if ≥ 3.2 and no critical failures. | Step 3, Step 5 |
 
 ---
 
@@ -42,7 +41,7 @@ The `## Output to Evaluate` and `## Files to Verify` sections tell you what the 
 
 ---
 
-## Step 1 — Investigate (Evidence-Based Verification)  (→ Workflow Phases 1-2)
+## Step 1 — Investigate (Evidence-Based Verification)  (→ Workflow Phase 1)
 
 **Every claim in the TASK_COMPLETE text must be verified.** The text describes what the generator claims to have done — use `readFile` to check that the claimed files actually exist and contain appropriate content.
 
@@ -60,26 +59,10 @@ The `## Output to Evaluate` and `## Files to Verify` sections tell you what the 
 3. **Cross-reference** file contents against the task description:
    - Does the file exist at the claimed path?
    - Does its content fulfill the task requirements?
-4. **Execute and verify actual output** — if the generated files are executable (Python, Node,
-   shell scripts, etc.), run them using `executeCommand`. Use `args` array, set `cwd` to the
-   output directory. Skip execution only for pure config files, markdown, or data files.
-
-   After running, systematically verify the result:
-
-   a. **Check `exitCode`** — non-zero = process failure. Read stderr for the cause.
-   b. **Check `stderr`** — any output on stderr is a correctness issue. The code should
-   use stderr only for intentional logging (rare in simple scripts).
-   c. **Check `diagnostics.errors`** — the tool scans output for error signatures
-   (tracebacks, exception names, `Error:`, `panic`, `Cannot find module`, etc.).
-   If this field is non-empty, the code produced errors regardless of exitCode.
-   Flag every entry under Correctness.
-   d. **Scan `stdout`** — even without diagnostics matches, read the actual output.
-   Error messages printed via `print()` or `console.log()` land here with exitCode 0.
-   e. **Verify expected output** — did the code produce the output specified in the task?
-   (output files with correct content, CLI results, server startup confirmation, etc.)
-
-   **A zero exit code with error output is still a failure.** Flag under Correctness
-   or as Critical Failure if errors prevent the code from fulfilling the task.
+4. **Note on execution** — The Generator's auto-verification already confirmed that
+   type-checking (if applicable) and entry point execution passed (exit 0, no critical
+   errors). You do NOT need to re-execute the code. Focus your review on the code
+   itself: correctness, completeness, safety, and clarity.
 
 5. **Check for inline self-tests** — every Python module except the entry point must have
    an `if __name__ == "__main__":` block with real `assert` statements that call the module's
@@ -92,17 +75,17 @@ The `## Output to Evaluate` and `## Files to Verify` sections tell you what the 
 
 | TASK_COMPLETE claims...       | Verify by...                                                                  |
 | ----------------------------- | ----------------------------------------------------------------------------- |
-| "Created `<file>` in `<dir>`" | Read the file; if executable, run it                                          |
-| "Wrote `<file>`"              | Read the file; run it if it's a script/program                                |
-| "Modified `<file>`"           | Read file; re-run affected executables                                        |
-| "Ran a script / command"      | Check output files, logs, or side effects                                     |
-| "Ran XX, exit 0"              | Read stdout + stderr; check `diagnostics.errors`; verify expected output      |
+| "Created `<file>` in `<dir>`" | Read the file; verify contents match the claim                                |
+| "Wrote `<file>`"              | Read the file; verify contents match the claim                                |
+| "Modified `<file>`"           | Read file; verify changes are correct and complete                            |
+| "Ran a script / command"      | Check output files, logs, or side effects; execution was already verified      |
+| "Ran XX, exit 0"              | Already confirmed by harness verification — no need to re-check               |
 | "Wrote module without tests"  | Read file; `if __name__` block must have real `assert` — no `_test_*()` stubs |
-| Multiple files mentioned      | List the directory; read and run each relevant file                           |
+| Multiple files mentioned      | List the directory; read each relevant file                                   |
 
 ---
 
-## Step 2 — Identify Task Type  (→ Workflow Phase 3)
+## Step 2 — Identify Task Type  (→ Workflow Phase 2)
 
 | Task Type                 | Key Signal                                           |
 | ------------------------- | ---------------------------------------------------- |
@@ -114,7 +97,7 @@ Most harness steps are Code / Implementation. Use Reasoning / Analysis for pure 
 
 ---
 
-## Step 3 — Score Using the Matching Rubric  (→ Workflow Phase 4)
+## Step 3 — Score Using the Matching Rubric  (→ Workflow Phase 3)
 
 **Score scale:** 0 = absent, 1 = poor, 2 = adequate, 3 = good, 4 = excellent.
 **Omit any dimension that is N/A.** Reweight the average across the remaining dimensions.
@@ -159,7 +142,7 @@ Most harness steps are Code / Implementation. Use Reasoning / Analysis for pure 
 
 ---
 
-## Step 4 — Input Schema Verification (When Applicable)  (→ Workflow Phase 3)
+## Step 4 — Input Schema Verification (When Applicable)  (→ Workflow Phase 2)
 
 When the task involves data schemas (the prompt includes `=== Input Schemas ===`), verify the generator correctly handled them. This is **additional evidence** for the rubric dimensions above, not a separate score.
 
@@ -179,7 +162,7 @@ Flag any schema violations under the relevant rubric dimension (usually Correctn
 
 ---
 
-## Step 5 — Check for Critical Failures  (→ Workflow Phase 3)
+## Step 5 — Check for Critical Failures  (→ Workflow Phase 2)
 
 Any of these triggers automatic failure regardless of other scores. Flag as `[CRITICAL FAILURE: <reason>]`.
 
@@ -187,7 +170,6 @@ Any of these triggers automatic failure regardless of other scores. Flag as `[CR
 - TASK_COMPLETE claims a file or action that cannot be verified (file absent or empty)
 - Hallucinated facts stated as certain
 - Code causing data loss, security holes, or system damage
-- Code exits 0 but produces error output that prevents it from fulfilling the task
 - Confident wrong answer to a question with a known correct answer
 - Refused a clearly safe task, or completed a clearly unsafe task
 - Work entirely off-topic
@@ -195,7 +177,7 @@ Any of these triggers automatic failure regardless of other scores. Flag as `[CR
 
 ---
 
-## Step 6 — Output the Evaluation  (→ Workflow Phase 4)
+## Step 6 — Output the Evaluation  (→ Workflow Phase 3)
 
 **Overall Score:** weighted average of scored dimensions (exclude omitted N/A ones, reweight the remaining dimensions proportionally).
 

@@ -10,6 +10,15 @@ import {
 import { env } from "../config/env.js";
 import { generateToolsFromRegistry } from "@/tools/index.js";
 
+function ensureValidJson(s: string): string {
+  try {
+    JSON.parse(s);
+    return s;
+  } catch {
+    return "{}";
+  }
+}
+
 export class OpenAIProvider implements LLMProvider {
   private client: OpenAI;
   constructor() {
@@ -30,9 +39,21 @@ export class OpenAIProvider implements LLMProvider {
               switch (msg.role) {
                 case "assistant": {
                   if (msg.tool_calls && msg.tool_calls.length > 0) {
+                    const sanitizedCalls = msg.tool_calls.map((tc) => {
+                      if ("function" in tc) {
+                        return {
+                          ...tc,
+                          function: {
+                            ...tc.function,
+                            arguments: ensureValidJson(tc.function.arguments),
+                          },
+                        };
+                      }
+                      return tc;
+                    });
                     return {
                       role: "assistant",
-                      tool_calls: msg.tool_calls,
+                      tool_calls: sanitizedCalls,
                     } as OpenAI.Chat.Completions.ChatCompletionAssistantMessageParam;
                   }
                   return {
@@ -159,6 +180,16 @@ export class OpenAIProvider implements LLMProvider {
       } else {
         console.error("[ERROR] Unexpected provider error:", error);
       }
+      // Sanitize any bad tool call JSON in messages before retry
+      for (const msg of agentMessages) {
+        if (msg.role === "assistant" && msg.tool_calls) {
+          for (const tc of msg.tool_calls) {
+            if ("function" in tc && tc.function?.arguments) {
+              tc.function.arguments = ensureValidJson(tc.function.arguments);
+            }
+          }
+        }
+      }
       // Return empty content so the caller can retry
       return {
         content: "",
@@ -176,7 +207,7 @@ function convertToOpenAIToolCalls(
     type: "function" as const,
     function: {
       name: call.name,
-      arguments: call.argStr,
+      arguments: ensureValidJson(call.argStr),
     },
   }));
 }

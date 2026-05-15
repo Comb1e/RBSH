@@ -74,6 +74,22 @@ Column names are shown in backticks and are **mechanically extracted identifiers
 
 ---
 
+## Using example values
+
+Each column in the input scaffolding includes an **Examples** field — up to 5 sampled values
+from the actual data. Use these to:
+
+- **Refine types** — values like `"0"`, `"1"` in a column suggest boolean/integer, not freeform string
+- **Disambiguate meaning** — cryptic header names become clear when you see what the data looks like
+- **Infer roles** — near-unique values suggest KEY, repetitive values suggest LABEL or FILTER
+- **Detect data quality issues** — mixed formats (e.g., some numbers, some text) or inconsistent
+  representations deserve a Caveat
+
+**Example:** A column named `是否激活` with examples `["0", "1", "1", "0"]` should be typed as
+`boolean` (or `integer`) with role `FILTER`, even if the inferred type says `string`.
+
+---
+
 ## Project name
 
 If the user does not supply a project name, infer one from the workbook content and

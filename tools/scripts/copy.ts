@@ -80,6 +80,13 @@ export const copyFileToolDefinition: ToolDefinition<typeof CopyFileArgsSchema> =
     "Directories are copied recursively.",
   schema: CopyFileArgsSchema,
   execute: async (args: CopyFileArgs) => {
-    return await copyFile(args);
+    console.log(`[copyFile] ${args.sourcePath} → ${args.destPath}`);
+    const result = await copyFile(args);
+    if (result.success) {
+      console.log(`[copyFile] Copied ${args.sourcePath} → ${args.destPath}`);
+    } else {
+      console.log(`[copyFile] FAILED: ${args.sourcePath} — ${result.error}`);
+    }
+    return result;
   },
 };

@@ -13,7 +13,9 @@ export async function getModifierBaseMessage(
 
   let basicSkills: string[] = [];
   if (isPlan) {
-    basicSkills = await readFilesFromRecord({ skills: ["modifier.md"] });
+    basicSkills = await readFilesFromRecord({
+      skills: ["modifier.md", "execute_command.md"],
+    });
   }
 
   const systemPrompt = `
@@ -24,7 +26,28 @@ export async function getModifierBaseMessage(
   - Preserve all Markdown structure (headings, tables, lists, blank lines).
   - Do not add commentary, apologies, or free-text explanations.
   - If a command is ambiguous, apply the most minimal reasonable interpretation.
-  ${basicSkills.length > 0 ? `\n  === BASIC SKILLS ===\n  ${basicSkills.join("\n\n")}` : ""}
+  ${
+    basicSkills.length > 0
+      ? `\n  === BASIC SKILLS ===\n  ${basicSkills.join("\n\n")}`
+      : ""
+  }
+
+  === OUTPUT FORMAT ===
+  After writing the modified document, you MUST append a \`<TASK_COMPLETE>\` block.
+  The harness detects this tag to confirm your work is done — without it your response
+  will be rejected. Format:
+
+  \`\`\`
+  (the complete modified document, exactly as it should appear on disk)
+
+  <TASK_COMPLETE>
+  Command  : <the modification you were asked to make>
+  Changes  : <brief summary of what was changed>
+  </TASK_COMPLETE>
+  \`\`\`
+
+  Do NOT wrap the document in code fences. The \`<TASK_COMPLETE>\` block must be
+  the very last thing in your response.
   `.trim();
 
   let extraContext = "";

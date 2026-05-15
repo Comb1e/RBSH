@@ -310,26 +310,64 @@ Security:
     args: CommandOptions
   ): Promise<{
     success: boolean;
-    data?: CommandResult;
+    stdout?: string;
+    stderr?: string;
+    exitCode?: number | null;
+    duration?: number;
+    diagnostics?: string[];
+    timedOut?: boolean;
     error?: string;
   }> => {
+    const cmdStr = args.args?.length
+      ? `${args.command} ${args.args.join(" ")}`
+      : args.command;
+    const loc = args.cwd ? ` (cwd: ${args.cwd})` : "";
+    console.log(`[executeCommand] ${cmdStr}${loc}`);
+
     try {
       const result = await executeCommand(args);
       const isSuccess = result.exitCode === 0 && !result.timedOut;
 
       if (!isSuccess) {
+        const stderrPreview = result.stderr
+          ? result.stderr.slice(0, 500)
+          : "";
+        const diagErrors = result.diagnostics?.errors;
+        console.log(
+          `[executeCommand] FAILED (exit ${result.exitCode ?? "timeout"})`
+        );
+        if (stderrPreview) {
+          console.log(`[executeCommand] stderr: ${stderrPreview}`);
+        }
+        if (diagErrors?.length) {
+          console.log(`[executeCommand] diagnostics: ${diagErrors.join("; ").slice(0, 500)}`);
+        }
         return {
           success: false,
           error: result.timedOut
             ? `Command timed out after ${args.timeout}ms`
-            : `Command failed with exit code ${result.exitCode}`,
-          data: result,
+            : `Command exited with code ${result.exitCode}`,
+          exitCode: result.exitCode,
+          stdout: result.stdout.slice(0, 3000),
+          stderr: result.stderr.slice(0, 3000),
+          diagnostics: diagErrors,
+          timedOut: result.timedOut,
+          duration: result.duration,
         };
       }
 
-      return { success: true, data: result };
+      console.log(
+        `[executeCommand] Exit 0 (${result.duration}ms)`
+      );
+      return {
+        success: true,
+        stdout: result.stdout.slice(0, 1000),
+        stderr: result.stderr.slice(0, 500),
+        duration: result.duration,
+      };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
+      console.log(`[executeCommand] FAILED: ${message}`);
       return { success: false, error: message };
     }
   },

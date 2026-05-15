@@ -44,16 +44,24 @@ Each step iterates up to `AGENT_MAX_ITERATIONS` times. The Generator produces a 
 
 `runAgent()` is the shared agent loop used by Generator, Evaluator, and Modifier. It calls the LLM, executes any tool calls returned, feeds tool results back, and repeats until the agent emits a `TASK_COMPLETE` signal or hits `AGENT_MAX_ITERATIONS`. The task-complete signal contains `<SUMMARIZATION>` (JSON array describing tool invocations) and `<TASK_COMPLETE>` (plain-text summary) XML tags.
 
+When the role is `"Generator"` and an output directory is set, `runAgent` performs **auto-verification** before accepting the completion:
+1. **Type-check** — runs `npx tsc --noEmit` if `.ts`/`.tsx` files and a `tsconfig.json` are present (skipped otherwise)
+2. **Execution** — finds the entry point (preferring `main.*`, `index.*`, etc.) and runs it
+If either fails, the error is injected back into the agent messages and the loop continues — the Generator must fix the issue before completing.
+
 ### LLM provider (`providers/`)
 
 `createProvider()` returns an `OpenAIProvider` (OpenAI-compatible API, currently pointed at Alibaba DashScope). Config lives in `config/env.ts` — Zod validates all env vars at startup. The `@/*` path alias maps to the project root (see `tsconfig.json` paths).
 
 ### Tools (`tools/`)
 
-Each agent role has its own tool registry mapping tool names to Zod-schema-validated implementations:
-- **Generator**: `createFileWithDirectories` (writes files, creates parent dirs), `readFile` (reads files / lists directories)
-- **Evaluator**: `readFile` only (verifies generator claims by inspecting actual files)
-- **Modifier**: `readFile`, `createFileWithDirectories` (reads existing plan, writes modified plan)
+Each agent role has its own tool registry mapping tool names to Zod-schema-validated implementations. `commonTools` provides `readFile` (reads files / lists directories) to every role.
+
+- **Generator**: `readFile`, `executeCommand`, `createFileWithDirectories` (writes files, creates parent dirs)
+- **Evaluator**: `readFile`, `executeCommand` (evaluator inspects files by reading; execution is optional since the Generator already verified)
+- **Modifier**: `readFile`, `executeCommand`, `createFileWithDirectories` (reads existing doc, writes modified doc)
+
+`executeCommand` is the general-purpose file modification tool — agents use shell commands (`cat`, `echo`, `sed`, `grep`, etc.) rather than a dedicated replace-in-file tool.
 
 Tool schemas live in `schemas/tools/`. `tools/tools.ts` handles generic tool execution and Zod-to-JSON-Schema conversion for the LLM.
 

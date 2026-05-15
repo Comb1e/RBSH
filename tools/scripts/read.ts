@@ -143,7 +143,27 @@ export const readFileToolDefinition: ToolDefinition<typeof ReadFileArgsSchema> =
       "Reads file content within a line range to optimize context. Use listDir to browse directories.",
     schema: ReadFileArgsSchema,
     execute: async (args: ReadFileArgs) => {
+      const desc =
+        args.action === "list_dir"
+          ? `list_dir ${args.filePath}`
+          : args.startLine || args.endLine
+            ? `${args.filePath} (lines ${args.startLine ?? 1}-${args.endLine ?? "EOF"})`
+            : args.filePath;
+      console.log(`[readFile] ${desc}`);
+
       const result = await readFile(args);
+
+      if (result.success === "read_file_success") {
+        console.log(
+          `[readFile] ${result.linesReturned} lines from ${args.filePath}`
+        );
+      } else if (result.success === "list_dir_success") {
+        console.log(
+          `[readFile] ${result.entries.length} entries in ${args.filePath}`
+        );
+      } else {
+        console.log(`[readFile] FAILED: ${args.filePath} — ${result.error}`);
+      }
 
       if (env.NODE_ENV === "development") {
         ReadFileResultSchema.parse(result);
