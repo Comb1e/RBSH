@@ -1,10 +1,9 @@
 import * as z from "zod";
 
-// Zod schema for command execution options
+// Zod schema for command execution options (public — what the LLM sees)
 export const CommandOptionsSchema = z.object({
   command: z.string().min(1, "Command cannot be empty"),
   args: z.array(z.string()).optional().default([]),
-  cwd: z.string().optional(), // default applied at execution time (process.cwd())
   timeout: z.number().int().positive().optional().default(30000),
   maxBuffer: z
     .number()
@@ -18,3 +17,8 @@ export const CommandOptionsSchema = z.object({
 });
 
 export type CommandOptions = z.infer<typeof CommandOptionsSchema>;
+
+/** Internal options — includes cwd which is set by the harness, not the LLM. */
+export interface ExecuteCommandOptions extends CommandOptions {
+  cwd?: string;
+}

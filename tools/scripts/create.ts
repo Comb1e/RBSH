@@ -1,10 +1,17 @@
 import { mkdir, writeFile } from "fs/promises";
 import { dirname, resolve, sep } from "path";
+import { fileURLToPath } from "node:url";
 import { CreateFileOptions, ToolDefinition } from "@/types/index.js";
 import { createFileWithDirectoriesSchema } from "@/schemas/index.js";
+import { getExecuteDefaultCwd } from "./exec.js";
 
-/** All folders under ./output are acceptable write targets. */
-const ALLOWED_BASE = resolve("./output");
+const __filename = fileURLToPath(import.meta.url);
+const __dirnameVal = dirname(__filename);
+const PROJECT_ROOT = resolve(__dirnameVal, "..", "..");
+
+function getBaseDir(): string {
+  return getExecuteDefaultCwd() ?? PROJECT_ROOT;
+}
 
 /**
  * Creates a file at the specified path, automatically creating any missing parent
@@ -19,15 +26,16 @@ export async function createFileWithDirectories(
     throw new TypeError("Invalid file path: a non-empty string is required.");
   }
 
-  const absolutePath = resolve(filePath);
+  const baseDir = getBaseDir();
+  const absolutePath = resolve(baseDir, filePath);
 
-  // Path traversal protection — accept any path under ./output
+  // Path traversal protection — accept any path under the base directory
   if (
-    absolutePath !== ALLOWED_BASE &&
-    !absolutePath.startsWith(ALLOWED_BASE + sep)
+    absolutePath !== baseDir &&
+    !absolutePath.startsWith(baseDir + sep)
   ) {
     throw new Error(
-      `Path traversal denied: "${filePath}" resolves outside allowed directory "${ALLOWED_BASE}".`
+      `Path traversal denied: "${filePath}" resolves outside allowed directory "${baseDir}".`
     );
   }
 

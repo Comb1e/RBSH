@@ -87,9 +87,9 @@ export async function createGeneratorBaseMessage(
   Notice the output format!!!
 
   === OUTPUT DIRECTORY ===
-  Write ALL files to this directory: ${outputDir || "./output"}
-  Every file path you pass to createFileWithDirectories MUST start with this
-  directory. Do not write files anywhere else.
+  The working directory (cwd) is already set to: ${outputDir || "./output"}
+  All paths in createFileWithDirectories and executeCommand are relative to this
+  directory. Do NOT prefix paths with the output directory path.
 
   ${inputFilesSection}
 
@@ -109,7 +109,7 @@ export async function createGeneratorBaseMessage(
   ────
   ${artifact.task}
 
-  ✅ COMPLETED STEPS (DO NOT re-implement these — already done)
+  ✅ COMPLETED STEPS (already done — surgical edits via executeCommand allowed)
   ─────────────────────────────────────────────────────────────
   These steps have been fully executed. Their outputs are captured
   in "Code Summarization" and "Previous Output" below.
@@ -135,7 +135,11 @@ export async function createGeneratorBaseMessage(
 
   ───────────────────────────────────────────────────────
   SUMMARIZATION OF COMPLETED STEPS
-  (Use this directly — do not rewrite what already exists)
+  (These files exist on disk. Import and call them directly.
+      When the current task requires changes to these files —
+      add a function, fix an import, update a constant — use
+      executeCommand with sed/tee to surgically edit them.
+      Do NOT recreate the entire file from scratch.)
   ───────────────────────────────────────────────────────
   ${renderPriorContext(artifact.preToolSummarize)}
 

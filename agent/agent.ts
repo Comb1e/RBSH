@@ -34,6 +34,13 @@ const EXECUTABLE_EXTENSIONS: Record<string, string> = {
 
 const ENTRY_POINT_PATTERNS = /(^|\/|\\)(main|index|app|server|cli|run)\.[^.]+$/;
 
+function filePathToPythonModule(filePath: string): string {
+  return filePath
+    .replace(/\.\//, "")
+    .replace(/\.py$/, "")
+    .replace(/[/\\]/g, ".");
+}
+
 function findEntryPoint(
   files: { path: string }[]
 ): { filePath: string; interpreter: string; args: string[] } | null {
@@ -54,13 +61,23 @@ function findEntryPoint(
   return {
     filePath: entry.path,
     interpreter,
-    args: interpreter === "npx" ? ["tsx", entry.path] : [entry.path],
+    args:
+      interpreter === "npx"
+        ? ["tsx", entry.path]
+        : interpreter === "python"
+        ? ["-m", filePathToPythonModule(entry.path)]
+        : [entry.path],
   };
 }
 
 function buildAutoVerifyFailureMessage(
   entryPoint: { filePath: string; interpreter: string; args: string[] },
-  result: { exitCode: number | null; stdout: string; stderr: string; diagnostics?: { errors: string[] } },
+  result: {
+    exitCode: number | null;
+    stdout: string;
+    stderr: string;
+    diagnostics?: { errors: string[] };
+  },
   cwd?: string
 ): string {
   const cwdNote = cwd ? `  (cwd: ${cwd})` : "";
@@ -100,7 +117,9 @@ async function runTypeCheck(
     return ext === ".ts" || ext === ".tsx";
   });
   if (!hasTypeScript) {
-    console.log("[AUTO-VERIFY] No TypeScript files found — skipping type-check.");
+    console.log(
+      "\n[AUTO-VERIFY] No TypeScript files found — skipping type-check."
+    );
     return null;
   }
 
@@ -148,7 +167,9 @@ async function runTypeCheck(
     return { passed: false, message: lines.join("\n") };
   } catch (err) {
     console.log(
-      `[AUTO-VERIFY] Could not run tsc (${(err as Error).message}) — skipping type-check.`
+      `[AUTO-VERIFY] Could not run tsc (${
+        (err as Error).message
+      }) — skipping type-check.`
     );
     return null;
   }
@@ -162,6 +183,7 @@ export async function runAgent(
   outputDir?: string
 ): Promise<AgentCompletionResult> {
   if (outputDir) {
+    outputDir = path.resolve(outputDir);
     setExecuteDefaultCwd(outputDir);
   }
   let summarizeResults: ToolAnalysisResult[] = [];
@@ -176,9 +198,7 @@ export async function runAgent(
 
     // Check toolCalls
     if (toolCalls != undefined && toolCalls.length > 0) {
-      console.log(
-        `[${role}] ${toolCalls.map((t) => t.name).join(", ")}`
-      );
+      console.log(`[${role}] ${toolCalls.map((t) => t.name).join(", ")}`);
       const executionResults = await handleToolExecution(
         toolCalls,
         toolRegistry
@@ -233,16 +253,26 @@ export async function runAgent(
             const typeCheckResult = await runTypeCheck(allFiles, outputDir);
             if (typeCheckResult && !typeCheckResult.passed) {
               console.log(
-                `\n[AUTO-VERIFY] Type-check failed. Injecting feedback.`
+                `\n[AUTO-VERIFY] Type-check failed:\n${typeCheckResult.message}\n`
               );
-              agentMessages.push({ role: "user", content: typeCheckResult.message });
+              agentMessages.push({
+                role: "user",
+                content: typeCheckResult.message,
+              });
               continue;
             }
 
             const entryPoint = findEntryPoint(allFiles);
             if (entryPoint) {
               try {
-                const relativePath = path.relative(outputDir, entryPoint.filePath);
+                const resolvedEntryPath = path.resolve(
+                  outputDir,
+                  entryPoint.filePath
+                );
+                const relativePath = path.relative(
+                  outputDir,
+                  resolvedEntryPath
+                );
                 const execResult = await executeCommand({
                   command: entryPoint.interpreter,
                   args: entryPoint.args.map((a) =>
@@ -259,13 +289,13 @@ export async function runAgent(
                   (!execResult.diagnostics ||
                     execResult.diagnostics.errors.length === 0);
                 if (!passed) {
-                  console.log(
-                    `\n[AUTO-VERIFY] Entry point failed (exit ${execResult.exitCode}). Injecting feedback.`
-                  );
                   const failMsg = buildAutoVerifyFailureMessage(
                     entryPoint,
                     execResult,
                     outputDir
+                  );
+                  console.log(
+                    `\n[AUTO-VERIFY] Entry point failed (exit ${execResult.exitCode}):\n${failMsg}\n`
                   );
                   agentMessages.push({ role: "user", content: failMsg });
                   continue;
@@ -275,12 +305,16 @@ export async function runAgent(
                 );
               } catch (err) {
                 console.log(
-                  `\n[AUTO-VERIFY] Could not execute entry point: ${(err as Error).message}`
+                  `\n[AUTO-VERIFY] Could not execute entry point: ${
+                    (err as Error).message
+                  }`
                 );
                 const failMsg = [
                   "AUTO-VERIFICATION: Could not run your entry point.",
                   "",
-                  `Command: ${entryPoint.interpreter} ${entryPoint.args.join(" ")}`,
+                  `Command: ${entryPoint.interpreter} ${entryPoint.args.join(
+                    " "
+                  )}`,
                   `Error: ${(err as Error).message}`,
                   "",
                   "Fix the issue before declaring TASK_COMPLETE.",

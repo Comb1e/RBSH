@@ -12,7 +12,6 @@
 {
   "command": "<binary or script>",
   "args": ["<arg1>", "<arg2>"],
-  "cwd": "/path/within/project",
   "shell": false,
   "env": { "KEY": "value" },
   "input": "optional stdin string",
@@ -23,7 +22,7 @@
 
 **Required**: `command`
 **Optional**: all other fields
-**Defaults**: `shell: false`, `timeout: 30 000 ms`, `maxBuffer: 10 MB`, `cwd: projectOutputDir ?? process.cwd()`
+**Defaults**: `shell: false`, `timeout: 30 000 ms`, `maxBuffer: 10 MB`
 
 ---
 
@@ -35,25 +34,17 @@ Never embed arguments in the `command` string. The tool spawns with `shell: fals
 
 ```jsonc
 // CORRECT
-{ "command": "python", "args": ["./src/main.py", "--verbose"] }
+{ "command": "python", "args": ["-m", "src.main", "--verbose"] }
 
 // WRONG — shell is false, the whole string becomes the binary name
-{ "command": "python ./src/main.py --verbose" }
+{ "command": "python -m src.main --verbose" }
 ```
 
-### 2. Set `cwd` for relative-path scripts
-
-If a script resolves files relative to its own location, set `cwd` to that directory. Omitting `cwd` defaults to `projectOutputDir`, which may not match where the script expects to run.
-
-```jsonc
-{ "command": "node", "args": ["index.js"], "cwd": "./output/my-project" }
-```
-
-### 3. Never enable `shell: true` unless strictly required
+### 2. Never enable `shell: true` unless strictly required
 
 Shell mode exposes the full shell pipeline to injection. Prefer passing arguments via `args`. If a pipeline is genuinely necessary (`command1 | command2`), enable `shell: true` and pass the full command as a single string — but treat this as an escalation requiring justification.
 
-### 4. Do not call `shell: true` + dangerous patterns
+### 3. Do not call `shell: true` + dangerous patterns
 
 The blocked-pattern scanner runs on the assembled command string regardless of shell mode. The following constructs are always rejected:
 
@@ -142,7 +133,7 @@ The `maxBuffer` default (10 MB) covers most outputs. If a script produces large 
 ### Run a script
 
 ```jsonc
-{ "command": "python", "args": ["./src/analyse.py"], "cwd": "./output/project" }
+{ "command": "python", "args": ["-m", "src.analyse"] }
 ```
 
 ### Type-check without emitting
@@ -154,19 +145,35 @@ The `maxBuffer` default (10 MB) covers most outputs. If a script produces large 
 ### Install dependencies
 
 ```jsonc
-{ "command": "npm", "args": ["install"], "cwd": "./output/project" }
+{ "command": "npm", "args": ["install"] }
 ```
 
 ### Read a file
 
 ```jsonc
-{ "command": "cat", "args": ["./output/project/README.md"] }
+{ "command": "cat", "args": ["./README.md"] }
 ```
+
+### Create a file (small content)
+
+```jsonc
+{ "command": "tee", "args": ["./config.json"], "input": "{ \"port\": 8080 }\n" }
+```
+
+`createFileWithDirectories` is the primary tool for creating files. Use `executeCommand` with `tee` for quick single-line or snippet writes when you don't need to create parent directories.
+
+### Append a line to a file
+
+```jsonc
+{ "command": "tee", "args": ["-a", "./log.txt"], "input": "2025-01-01 00:00:00 INFO Server started\n" }
+```
+
+The `-a` flag tells `tee` to append instead of overwrite. Use this for adding lines to existing files.
 
 ### Find a string in a file
 
 ```jsonc
-{ "command": "grep", "args": ["-n", "TODO", "./output/project/src/main.py"] }
+{ "command": "grep", "args": ["-n", "TODO", "./src/main.py"] }
 ```
 
 ### In-place text substitution
@@ -174,7 +181,7 @@ The `maxBuffer` default (10 MB) covers most outputs. If a script produces large 
 ```jsonc
 {
   "command": "sed",
-  "args": ["-i", "s/localhost/0.0.0.0/g", "./output/project/config.json"]
+  "args": ["-i", "s/localhost/0.0.0.0/g", "./config.json"]
 }
 ```
 
@@ -184,8 +191,7 @@ The `maxBuffer` default (10 MB) covers most outputs. If a script produces large 
 {
   "command": "node",
   "args": ["server.js"],
-  "env": { "PORT": "8080", "NODE_ENV": "production" },
-  "cwd": "./output/project"
+  "env": { "PORT": "8080", "NODE_ENV": "production" }
 }
 ```
 
@@ -194,7 +200,7 @@ The `maxBuffer` default (10 MB) covers most outputs. If a script produces large 
 ```jsonc
 {
   "command": "python",
-  "args": ["./scripts/process.py"],
+  "args": ["-m", "scripts.process"],
   "input": "line1\nline2\n"
 }
 ```
@@ -203,12 +209,13 @@ The `maxBuffer` default (10 MB) covers most outputs. If a script produces large 
 
 ## Filesystem Boundaries
 
-`cwd` is validated against two anchors:
+The working directory (`cwd`) is automatically set to the project output directory by the harness. All file paths in arguments should be relative to that directory.
 
+The resolved working directory must start within one of:
 - `path.resolve(".")` — the project root
 - `path.resolve("./output")` — the designated output directory
 
-Any resolved path that starts outside these two roots is rejected before the process is spawned. Do not attempt to `cd` into `/tmp`, `/home`, or absolute paths outside the project.
+Any path outside these two roots is rejected before the process spawns.
 
 ---
 
@@ -224,7 +231,6 @@ If the environment variable `EXEC_ALLOWED_COMMANDS` is set (comma-separated list
 | ------------------------------------------ | ------------------------------------------- | ------------------------------------------------------- |
 | `Command "X" is not in the allowed list`   | Allowlist mode active; binary not permitted | Use an allowed binary or update `EXEC_ALLOWED_COMMANDS` |
 | `Command blocked by security policy`       | Matched a blocked pattern                   | Reformulate the command to avoid the pattern            |
-| `cwd "…" is outside the project directory` | `cwd` resolves outside project/output roots | Use a relative path inside the project                  |
 | `Output exceeded max buffer`               | stdout or stderr exceeded `maxBuffer`       | Reduce output verbosity or write results to a file      |
 | `Process spawn failed: …`                  | Binary not found or permission denied       | Verify the binary is installed and on `PATH`            |
 
@@ -235,8 +241,7 @@ If the environment variable `EXEC_ALLOWED_COMMANDS` is set (comma-separated list
 Before calling `executeCommand`:
 
 1. **Is `command` a bare binary name?** Arguments belong in `args`, not appended to the command string.
-2. **Does the script use relative paths?** Set `cwd` explicitly.
-3. **Will the run take more than 30 s?** Pass a higher `timeout` (milliseconds).
-4. **Does the command produce large output?** Redirect to a file; do not rely on stdout capture.
-5. **Does the command need secrets?** Pass via `env`; never embed in `args` or `command`.
-6. **After receiving a result:** inspect both `success` and `diagnostics`; do not assume exit 0 means clean execution.
+2. **Will the run take more than 30 s?** Pass a higher `timeout` (milliseconds).
+3. **Does the command produce large output?** Redirect to a file; do not rely on stdout capture.
+4. **Does the command need secrets?** Pass via `env`; never embed in `args` or `command`.
+5. **After receiving a result:** inspect both `success` and `diagnostics`; do not assume exit 0 means clean execution.

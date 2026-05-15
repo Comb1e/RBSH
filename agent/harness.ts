@@ -184,7 +184,7 @@ export async function runHarness(
       "1. Look at the SUMMARIZATION OF COMPLETED STEPS below — it lists every file",
       "   that was created. Use readFile to inspect the entry point if needed.",
       "2. Run the project's entry point using executeCommand. Try multiple approaches",
-      "   if the first one fails (e.g. python main.py, then python src/main.py).",
+      "   if the first one fails (e.g. python -m main, then python -m src.main).",
       "3. If tests exist, run them.",
       "4. If the project fails, read the error, fix ONLY the broken file, and re-run.",
       "5. Report what you ran and whether it succeeded.",

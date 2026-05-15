@@ -7,6 +7,7 @@ import type { ReadFileArgs, ReadFileResult } from "@/schemas/index.js";
 import { ReadFileArgsSchema, ReadFileResultSchema } from "@/schemas/index.js";
 import type { ToolDefinition } from "@/types/index.js";
 import { env } from "../../config/env.js";
+import { getExecuteDefaultCwd } from "./exec.js";
 
 /** File reads are restricted to paths within the project directory.
  *  Uses file location (not CWD) for robustness regardless of launch directory. */
@@ -20,13 +21,16 @@ export async function readFile(args: ReadFileArgs): Promise<ReadFileResult> {
   try {
     // Strip leading slashes (LLMs often produce "/src/file.js" from Unix-style examples)
     const cleanPath = args.filePath.replace(/^\/+/, "");
-    const resolvedPath = path.resolve(cleanPath);
+    const baseDir = getExecuteDefaultCwd() ?? PROJECT_ROOT;
+    const resolvedPath = path.resolve(baseDir, cleanPath);
 
-    // Path traversal protection
-    if (
-      !resolvedPath.startsWith(PROJECT_ROOT + path.sep) &&
-      resolvedPath !== PROJECT_ROOT
-    ) {
+    // Path traversal protection — accept paths under project root or output dir
+    const allowed =
+      resolvedPath.startsWith(PROJECT_ROOT + path.sep) ||
+      resolvedPath === PROJECT_ROOT ||
+      resolvedPath.startsWith(baseDir + path.sep) ||
+      resolvedPath === baseDir;
+    if (!allowed) {
       return {
         success: false,
         error: `Path traversal denied: "${args.filePath}" resolves outside project directory.`,

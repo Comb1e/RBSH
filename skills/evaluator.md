@@ -48,14 +48,14 @@ The `## Output to Evaluate` and `## Files to Verify` sections tell you what the 
 ### Investigation workflow
 
 1. **Use `## Files to Verify` as your checklist** — paths listed there are mechanically
-   extracted from the generator's SUMMARIZATION JSON. They are project-root-relative and
+   extracted from the generator's SUMMARIZATION JSON. They are relative to the project output directory and
    authoritative. Cross-reference with TASK_COMPLETE claims, but always use the exact paths
    from `## Files to Verify`. Do NOT trim, prefix, or "fix" them — if a path there doesn't
    resolve, the file genuinely doesn't exist (Critical Failure).
    - Skip files in `./input_data/`, `plan.md`, and `schema.md` — already in the prompt context, not generator output
 2. **Read each claimed file** using `readFile` with the exact path from `## Files to Verify`.
-   Paths are project-root-relative (e.g. `"./output/my-project/src/auth.js"`).
-   Never strip the output directory prefix. Never add a leading `/`.
+   Paths are relative to the output directory (e.g. `"./src/auth.js"`).
+   Never add a leading `/`.
 3. **Cross-reference** file contents against the task description:
    - Does the file exist at the claimed path?
    - Does its content fulfill the task requirements?
@@ -193,7 +193,7 @@ Wrap the entire evaluation inside XML tags:
 [types]
 
 ## Investigation Summary
-[Begin with the file path being evaluated, then what you checked and the key finding. One sentence. Example: `./output/my-project/src/auth.js` — stub only, no JWT logic found.]
+[Begin with the file path being evaluated, then what you checked and the key finding. One sentence. Example: `./src/auth.js` — stub only, no JWT logic found.]
 
 ## Dimensions Evaluated
 | Dimension | Score | Reasoning |
@@ -274,9 +274,9 @@ No prior steps were completed before this tool use.
 
 **Investigation:**
 
-- `readFile("./output/my-project/src/middleware/auth.js")` → file exists; contains only `// TODO: implement JWT verification` and `module.exports = (req, res, next) => next();`
+- `readFile("./src/middleware/auth.js")` → file exists; contains only `// TODO: implement JWT verification` and `module.exports = (req, res, next) => next();`
 - TASK_COMPLETE claims JWT authentication middleware was created — the actual file has no JWT logic
-- `readFile("./output/my-project/src/app.js")` → middleware correctly imported and registered on line 8
+- `readFile("./src/app.js")` → middleware correctly imported and registered on line 8
 
 **Evaluation:**
 
@@ -286,7 +286,7 @@ No prior steps were completed before this tool use.
 Code / Implementation
 
 ## Investigation Summary
-`./output/my-project/src/middleware/auth.js` — stub only, no JWT logic; TASK_COMPLETE claimed JWT middleware was created but the file contains no verification.
+`./src/middleware/auth.js` — stub only, no JWT logic; TASK_COMPLETE claimed JWT middleware was created but the file contains no verification.
 
 ## Dimensions Evaluated
 | Dimension | Score | Reasoning |
@@ -345,7 +345,7 @@ Cross-sheet: relationshipType "reference", note "returns.product_id is a subset 
 
 **Investigation:**
 
-- `readFile("./output/my-project/src/net_revenue.py")` → uses `pd.merge(sales, returns, on='product_id', how='inner')` — INNER JOIN
+- `readFile("./src/net_revenue.py")` → uses `pd.merge(sales, returns, on='product_id', how='inner')` — INNER JOIN
 - TASK_COMPLETE confirms INNER JOIN was used
 - Schema explicitly states returns is a subset and specifies LEFT JOIN
 - INNER JOIN silently drops products with no returns, inflating net revenue
@@ -358,7 +358,7 @@ Cross-sheet: relationshipType "reference", note "returns.product_id is a subset 
 Code / Implementation
 
 ## Investigation Summary
-`./output/my-project/src/net_revenue.py` — uses INNER JOIN despite schema explicitly requiring LEFT JOIN for subset relationship.
+`./src/net_revenue.py` — uses INNER JOIN despite schema explicitly requiring LEFT JOIN for subset relationship.
 
 ## Dimensions Evaluated
 | Dimension | Score | Reasoning |

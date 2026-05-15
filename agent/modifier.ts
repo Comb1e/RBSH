@@ -24,7 +24,8 @@ export async function runModifier(
     provider,
     agentMessages,
     modifierToolRegistry,
-    "Modifier"
+    "Modifier",
+    projectDir
   );
   return result;
 }

@@ -370,6 +370,79 @@ For library code without an entry point, the `if __name__` block is still requir
 it serves as both test and usage example. A comment about testing is a placeholder.
 Placeholders are forbidden.
 
+### Running Submodules Directly — Sibling Import Fix (Required)
+
+Consider this layout:
+
+```
+project/
+├── main.py
+└── src/
+    ├── A.py        ← imports from B
+    └── B.py
+```
+
+`A.py` imports its sibling with:
+
+```python
+from src.B import some_func   # works when main.py runs it; breaks when A.py runs directly
+```
+
+`python main.py` works because Python adds the project root to `sys.path`, so
+`src` is a resolvable package. `python src/A.py` breaks because Python adds
+`src/` to `sys.path` instead — there is no `src` package visible from inside
+itself, so `from src.B import ...` raises `ModuleNotFoundError: No module named 'src'`.
+
+**Fix: insert the project root inside the `if __name__` guard**
+
+```python
+# src/A.py
+import sys
+from pathlib import Path
+
+from src.B import some_func   # normal module-level import — works when imported by main.py
+
+def run():
+    return some_func()
+
+if __name__ == "__main__":
+    # Add the project root to sys.path so 'src' is resolvable as a package.
+    # Must be inside this guard — never at module level — so it doesn't
+    # pollute sys.path when main.py imports this module normally.
+    sys.path.insert(0, str(Path(__file__).parent.parent))
+
+    # Re-import after path fix (the module-level import above ran before the fix)
+    from src.B import some_func
+
+    result = run()
+    assert result is not None, "Expected a result from run()"
+    print("Tests passed.")
+```
+
+Why the re-import is needed: the module-level `from src.B import some_func`
+executes before the `if __name__` block runs, so it already failed. Repeating
+the import inside the block — after the `sys.path` fix — loads it successfully.
+
+**Alternative: run as a module instead of a file**
+
+```bash
+# From the project root — no sys.path fix needed, Python resolves src as a package
+python -m src.A
+```
+
+This is cleaner when running manually, but requires the `if __name__` test block
+to still be present. The `sys.path` fix is still needed if the file might be
+executed directly (e.g. by a script runner, CI step, or another developer).
+
+**Depth formula**
+
+The number of `.parent` calls to reach the project root:
+
+| File location       | `sys.path.insert` argument                          |
+| ------------------- | --------------------------------------------------- |
+| `src/A.py`          | `Path(__file__).parent.parent` (2 levels up)        |
+| `src/pipeline/A.py` | `Path(__file__).parent.parent.parent` (3 levels up) |
+
 ### Test-Friendly Interfaces
 
 - Functions should return values rather than printing/logging results so tests can assert on return values.
@@ -421,6 +494,7 @@ Before finalising any non-trivial piece of code, verify:
 - [ ] Dependencies injectable (not hard-imported globals)
 - [ ] Return values (not side effects) for core logic
 - [ ] Every module (except main entry point) has an `if __name__` block with real assertions — no stub calls, no comments
+- [ ] Submodules with sibling imports (`from src.B import ...`) insert the project root onto `sys.path` inside the `if __name__` guard, then re-import after the fix
 
 ## Quick Reference: Error-Fixing Checklist
 

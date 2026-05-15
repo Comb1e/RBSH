@@ -19,6 +19,19 @@ function ensureValidJson(s: string): string {
   }
 }
 
+function stripCwdFromJson(s: string): string {
+  try {
+    const obj = JSON.parse(s);
+    if (obj && typeof obj === "object" && "cwd" in obj) {
+      delete obj.cwd;
+      return JSON.stringify(obj);
+    }
+    return s;
+  } catch {
+    return s;
+  }
+}
+
 export class OpenAIProvider implements LLMProvider {
   private client: OpenAI;
   constructor() {
@@ -109,7 +122,7 @@ export class OpenAIProvider implements LLMProvider {
             .map((tc) => ({
               id: tc.id,
               name: tc.function.name,
-              argStr: tc.function.arguments,
+              argStr: stripCwdFromJson(tc.function.arguments),
             }));
           agentMessages.push({
             role: "assistant",
@@ -150,6 +163,11 @@ export class OpenAIProvider implements LLMProvider {
           process.stdout.write(content);
           currentMessage += content;
         }
+      }
+
+      // Strip cwd from argStr — cwd is set by the harness, not the LLM
+      for (const tc of Object.values(unifiedToolCalls)) {
+        tc.argStr = stripCwdFromJson(tc.argStr);
       }
 
       const openaiToolCalls = convertToOpenAIToolCalls(unifiedToolCalls);
@@ -207,7 +225,7 @@ function convertToOpenAIToolCalls(
     type: "function" as const,
     function: {
       name: call.name,
-      arguments: ensureValidJson(call.argStr),
+      arguments: stripCwdFromJson(ensureValidJson(call.argStr)),
     },
   }));
 }

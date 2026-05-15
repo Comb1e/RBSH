@@ -1,6 +1,16 @@
 {
   "permissions": {
-    "allow": ["Bash(npx tsc *)", "Bash(node -e ' *)", "Bash(dir *)"]
+    "allow": [
+      "Bash(npx tsc *)",
+      "Bash(node -e ' *)",
+      "Bash(dir *)",
+      "Bash(sed -i '214,216d' skills/generator.md)",
+      "Bash(sed -n '210,220p' skills/generator.md)",
+      "Bash(sed -n '335,362p' tools/scripts/exec.ts)",
+      "Bash(sed -n '131,176p' skills/execute_command.md)",
+      "Bash(sed -n '26,28p' skills/generator.md)",
+      "Bash(sed -n '210,226p' skills/generator.md)"
+    ]
   },
   "statusLine": {
     "type": "command",

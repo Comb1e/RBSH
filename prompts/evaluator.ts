@@ -60,8 +60,8 @@ ${basicSkills.join("\n\n")}
 
 === OUTPUT DIRECTORY ===
 All generated files live under: ${outputDir || "./output"}
-Every path in "## Files to Verify" is relative to the project root and includes this prefix.
-Use the exact paths shown — do not strip the output directory prefix.
+Every path in "## Files to Verify" is relative to this directory.
+Use the exact paths shown — do not strip or alter them.
 
 === Background ===
 ${background}

@@ -1,13 +1,26 @@
 import * as path from "path";
+import { fileURLToPath } from "node:url";
 import type { ToolDefinition } from "@/types/index.js";
-import { CommandOptions, CommandOptionsSchema } from "@/schemas/index.js";
+import {
+  CommandOptions,
+  CommandOptionsSchema,
+  ExecuteCommandOptions,
+} from "@/schemas/index.js";
 import { spawn, ChildProcess } from "child_process";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const PROJECT_ROOT = path.resolve(__dirname, "..", "..");
 
 /** Set by the harness to the project output directory. Used as default cwd. */
 let projectOutputDir: string | undefined;
 
 export function setExecuteDefaultCwd(dir: string) {
-  projectOutputDir = dir;
+  projectOutputDir = path.resolve(dir);
+}
+
+export function getExecuteDefaultCwd(): string | undefined {
+  return projectOutputDir;
 }
 
 // ── Command safety ───────────────────────────────────────────────────────────
@@ -16,23 +29,28 @@ export function setExecuteDefaultCwd(dir: string) {
 function getAllowedCommands(): Set<string> | null {
   const raw = process.env.EXEC_ALLOWED_COMMANDS;
   if (!raw) return null;
-  return new Set(raw.split(",").map((s) => s.trim()).filter(Boolean));
+  return new Set(
+    raw
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean)
+  );
 }
 
 /** Patterns that are unconditionally blocked even outside allowlist mode. */
 const BLOCKED_PATTERNS = [
-  /rm\s+(-[rRf]+\s+)+\//,          // rm -rf /
-  /rm\s+-[rRf]+\s+\$/,             // rm -rf $VAR (environment destruction)
-  /rm\s+-[rRf]+\s+~/,              // rm -rf ~ (home directory)
-  /dd\s+if=/i,                     // raw disk operations
-  /mkfs/i,                         // filesystem creation
-  /chmod\s+777\s+\//i,            // world-writable root
-  />\s*\/dev\/sd/i,                // overwriting block devices
-  /:\s*\(\)\s*{\s*:;\s*}\)\s*;/i,  // fork bomb
-  /sudo\s+rm/i,                    // sudo rm
-  />\s*\/etc\//i,                  // overwriting /etc
-  /curl.*\|\s*(ba)?sh/i,           // curl pipe shell
-  /wget.*-O\s*-\s*\|/i,            // wget pipe
+  /rm\s+(-[rRf]+\s+)+\//, // rm -rf /
+  /rm\s+-[rRf]+\s+\$/, // rm -rf $VAR (environment destruction)
+  /rm\s+-[rRf]+\s+~/, // rm -rf ~ (home directory)
+  /dd\s+if=/i, // raw disk operations
+  /mkfs/i, // filesystem creation
+  /chmod\s+777\s+\//i, // world-writable root
+  />\s*\/dev\/sd/i, // overwriting block devices
+  /:\s*\(\)\s*{\s*:;\s*}\)\s*;/i, // fork bomb
+  /sudo\s+rm/i, // sudo rm
+  />\s*\/etc\//i, // overwriting /etc
+  /curl.*\|\s*(ba)?sh/i, // curl pipe shell
+  /wget.*-O\s*-\s*\|/i, // wget pipe
 ];
 
 function extractBaseCommand(command: string): string {
@@ -46,15 +64,16 @@ function isCommandSafe(command: string, args: string[]): boolean {
     const base = extractBaseCommand(command);
     if (!allowed.has(base)) {
       throw new Error(
-        `Command "${base}" is not in the allowed list. Allowed: ${[...allowed].join(", ")}`
+        `Command "${base}" is not in the allowed list. Allowed: ${[
+          ...allowed,
+        ].join(", ")}`
       );
     }
   }
 
   // Build full command string for pattern matching
-  const fullCommand = args.length > 0
-    ? `${command} ${args.join(" ")}`
-    : command;
+  const fullCommand =
+    args.length > 0 ? `${command} ${args.join(" ")}` : command;
 
   // Always block dangerous patterns
   for (const pattern of BLOCKED_PATTERNS) {
@@ -101,15 +120,37 @@ interface CommandResult {
 /** Patterns that indicate code printed errors even if exitCode was 0. */
 const ERROR_PATTERNS: { pattern: RegExp; label: string }[] = [
   // Python
-  { pattern: /Traceback\s*\(most recent call last\)/i, label: "Python traceback" },
-  { pattern: /\b(ModuleNotFoundError|ImportError|SyntaxError|IndentationError)\b/, label: "Python import/syntax error" },
-  { pattern: /\b(ValueError|TypeError|KeyError|IndexError|AttributeError)\b/, label: "Python runtime error" },
-  { pattern: /\b(FileNotFoundError|PermissionError|OSError|IOError)\b/, label: "Python file/OS error" },
-  { pattern: /\b(NameError|UnboundLocalError|RecursionError|AssertionError)\b/, label: "Python logic error" },
+  {
+    pattern: /Traceback\s*\(most recent call last\)/i,
+    label: "Python traceback",
+  },
+  {
+    pattern:
+      /\b(ModuleNotFoundError|ImportError|SyntaxError|IndentationError)\b/,
+    label: "Python import/syntax error",
+  },
+  {
+    pattern: /\b(ValueError|TypeError|KeyError|IndexError|AttributeError)\b/,
+    label: "Python runtime error",
+  },
+  {
+    pattern: /\b(FileNotFoundError|PermissionError|OSError|IOError)\b/,
+    label: "Python file/OS error",
+  },
+  {
+    pattern: /\b(NameError|UnboundLocalError|RecursionError|AssertionError)\b/,
+    label: "Python logic error",
+  },
   { pattern: /\bZeroDivisionError\b/, label: "Python division by zero" },
   // JS / Node
-  { pattern: /\b(ReferenceError|TypeError|SyntaxError|RangeError|URIError)\b/, label: "JavaScript error" },
-  { pattern: /UnhandledPromiseRejection/i, label: "Unhandled promise rejection" },
+  {
+    pattern: /\b(ReferenceError|TypeError|SyntaxError|RangeError|URIError)\b/,
+    label: "JavaScript error",
+  },
+  {
+    pattern: /UnhandledPromiseRejection/i,
+    label: "Unhandled promise rejection",
+  },
   { pattern: /Cannot find module\b/i, label: "Node missing module" },
   // Generic / shell
   { pattern: /\bpanic\b/i, label: "panic" },
@@ -123,14 +164,14 @@ const ERROR_PATTERNS: { pattern: RegExp; label: string }[] = [
   { pattern: /\bError in\b/, label: "R error" },
 ];
 
-function scanForErrors(stdout: string, stderr: string): CommandDiagnostics | undefined {
+function scanForErrors(
+  stdout: string,
+  stderr: string
+): CommandDiagnostics | undefined {
   const errors: string[] = [];
   const seen = new Set<string>();
 
-  const lines = [
-    ...stdout.split("\n"),
-    ...stderr.split("\n"),
-  ];
+  const lines = [...stdout.split("\n"), ...stderr.split("\n")];
 
   for (const line of lines) {
     const trimmed = line.trim();
@@ -152,29 +193,33 @@ function scanForErrors(stdout: string, stderr: string): CommandDiagnostics | und
 
 function isCwdSafe(cwd: string): boolean {
   const resolved = path.resolve(cwd);
-  const projectRoot = path.resolve(".");
-  const outputDir = path.resolve("./output");
-  return resolved.startsWith(projectRoot) || resolved.startsWith(outputDir);
+  return resolved.startsWith(PROJECT_ROOT + path.sep) || resolved === PROJECT_ROOT;
 }
 
-export function executeCommand(options: CommandOptions): Promise<CommandResult> {
+export function executeCommand(
+  options: ExecuteCommandOptions
+): Promise<CommandResult> {
   const startTime = Date.now();
   let timedOut = false;
   let killed = false;
   let exitCode: number | null = null;
 
-  const cwd = options.cwd ?? projectOutputDir ?? process.cwd();
+  const cwd = path.resolve(options.cwd ?? projectOutputDir ?? process.cwd());
   if (!isCwdSafe(cwd)) {
     return Promise.reject(
-      new Error(`cwd "${cwd}" is outside the project directory. Operations must stay within the project.`)
+      new Error(
+        `cwd "${cwd}" is outside the project directory. Operations must stay within the project.`
+      )
     );
+  } else {
+    console.log("[executeCommand] Using cwd:", cwd);
   }
 
   isCommandSafe(options.command, options.args ?? []);
 
   return new Promise((resolve, reject) => {
     const child: ChildProcess = spawn(options.command, options.args ?? [], {
-      cwd: options.cwd ?? process.cwd(),
+      cwd: cwd,
       shell: options.shell ?? false,
       env: { ...process.env, ...options.env },
       stdio: ["pipe", "pipe", "pipe"],
@@ -196,7 +241,9 @@ export function executeCommand(options: CommandOptions): Promise<CommandResult> 
       if (stdout.length + chunk.length > options.maxBuffer) {
         child.kill("SIGTERM");
         settle(() =>
-          reject(new Error(`Output exceeded max buffer (${options.maxBuffer} bytes)`))
+          reject(
+            new Error(`Output exceeded max buffer (${options.maxBuffer} bytes)`)
+          )
         );
       }
       stdout += chunk;
@@ -207,7 +254,11 @@ export function executeCommand(options: CommandOptions): Promise<CommandResult> 
       if (stderr.length + chunk.length > options.maxBuffer) {
         child.kill("SIGTERM");
         settle(() =>
-          reject(new Error(`Error output exceeded max buffer (${options.maxBuffer} bytes)`))
+          reject(
+            new Error(
+              `Error output exceeded max buffer (${options.maxBuffer} bytes)`
+            )
+          )
         );
       }
       stderr += chunk;
@@ -284,21 +335,25 @@ export const commandToolDefinition: ToolDefinition<
   description: `Execute any safe command. Use this for running code, testing, installing dependencies, and modifying files.
 
 For example:
-- Run code or scripts: { command: "python", args: ["./src/main.py"] }
+- Run code or scripts: { command: "python", args: ["-m", "src.main"] }
 - Run tests or type-check: { command: "npx", args: ["tsc", "--noEmit"] }
 - Install dependencies: { command: "npm", args: ["install"] }
-- Read a file: { command: "cat", args: ["./output/project/file.md"] }
-- Append a line to a file: { command: "echo", args: ["new line", ">>", "./output/project/file.md"] }
-- Replace text in a file: { command: "sed", args: ["-i", "s/old/new/g", "./output/project/file.md"] }
-- Find text in a file: { command: "grep", args: ["-n", "pattern", "./output/project/file.md"] }
+- Read a file: { command: "cat", args: ["./README.md"] }
+- Create a file: { command: "tee", args: ["./newfile.py"], input: "print('hello')" }
+- Append to a file: { command: "tee", args: ["-a", "./data.csv"], input: "new,row,data" }
+- Replace text in a file: { command: "sed", args: ["-i", "s/old/new/g", "./src/main.py"] }
+- Find text in a file: { command: "grep", args: ["-n", "TODO", "./src/main.py"] }
 
 Always pass arguments via the 'args' array — never embed them in the command string.
-Set 'cwd' to the output directory when running scripts that use relative paths.
+
+For shell redirects (>, >>) and pipes (|), set "shell": true:
+{ command: "echo", args: ["new line", ">>", "./log.txt"], shell: true }
+When shell:true, redirect operators in args are interpreted by the shell.
+When shell:false (default), use "tee" for file writes and "tee -a" for appends.
 
 Security:
 - Any command is allowed unless restricted by EXEC_ALLOWED_COMMANDS env var
 - Dangerous patterns (rm -rf /, dd, mkfs, curl|sh, etc.) are always blocked
-- cwd is restricted to the project directory and ./output
 - Default timeout: 30s. Hard kill at timeout + 10s.
 - Max output buffer: 10MB
 - Sensitive info (password, token) auto-redacted
@@ -321,17 +376,17 @@ Security:
     const cmdStr = args.args?.length
       ? `${args.command} ${args.args.join(" ")}`
       : args.command;
-    const loc = args.cwd ? ` (cwd: ${args.cwd})` : "";
-    console.log(`[executeCommand] ${cmdStr}${loc}`);
+    console.log(`[executeCommand] ${cmdStr}`);
 
     try {
-      const result = await executeCommand(args);
+      const result = await executeCommand({
+        ...args,
+        cwd: projectOutputDir,
+      });
       const isSuccess = result.exitCode === 0 && !result.timedOut;
 
       if (!isSuccess) {
-        const stderrPreview = result.stderr
-          ? result.stderr.slice(0, 500)
-          : "";
+        const stderrPreview = result.stderr ? result.stderr.slice(0, 500) : "";
         const diagErrors = result.diagnostics?.errors;
         console.log(
           `[executeCommand] FAILED (exit ${result.exitCode ?? "timeout"})`
@@ -340,7 +395,11 @@ Security:
           console.log(`[executeCommand] stderr: ${stderrPreview}`);
         }
         if (diagErrors?.length) {
-          console.log(`[executeCommand] diagnostics: ${diagErrors.join("; ").slice(0, 500)}`);
+          console.log(
+            `[executeCommand] diagnostics: ${diagErrors
+              .join("; ")
+              .slice(0, 500)}`
+          );
         }
         return {
           success: false,
@@ -356,9 +415,7 @@ Security:
         };
       }
 
-      console.log(
-        `[executeCommand] Exit 0 (${result.duration}ms)`
-      );
+      console.log(`[executeCommand] Exit 0 (${result.duration}ms)`);
       return {
         success: true,
         stdout: result.stdout.slice(0, 1000),
