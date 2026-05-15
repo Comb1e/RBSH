@@ -3,6 +3,13 @@ import type { ToolDefinition } from "@/types/index.js";
 import { CommandOptions, CommandOptionsSchema } from "@/schemas/index.js";
 import { spawn, ChildProcess } from "child_process";
 
+/** Set by the harness to the project output directory. Used as default cwd. */
+let projectOutputDir: string | undefined;
+
+export function setExecuteDefaultCwd(dir: string) {
+  projectOutputDir = dir;
+}
+
 // ── Command safety ───────────────────────────────────────────────────────────
 
 /** Allow-listed commands (checked first if env EXEC_ALLOWED_COMMANDS is set). */
@@ -156,7 +163,7 @@ export function executeCommand(options: CommandOptions): Promise<CommandResult> 
   let killed = false;
   let exitCode: number | null = null;
 
-  const cwd = options.cwd ?? process.cwd();
+  const cwd = options.cwd ?? projectOutputDir ?? process.cwd();
   if (!isCwdSafe(cwd)) {
     return Promise.reject(
       new Error(`cwd "${cwd}" is outside the project directory. Operations must stay within the project.`)
@@ -270,21 +277,26 @@ export function executeCommand(options: CommandOptions): Promise<CommandResult> 
 
 // ── Tool definition ──────────────────────────────────────────────────────────
 
-export const executeCommandTool = {
+export const commandToolDefinition: ToolDefinition<
+  typeof CommandOptionsSchema
+> = {
   name: "executeCommand",
-  description: `Execute a command safely without a shell.
+  description: `Execute any safe command. Use this for running code, testing, installing dependencies, and modifying files.
 
-Use cases:
-- Run generated code: { command: "python", args: ["src/main.py"] }
-- Run tests: { command: "npm", args: ["test"], cwd: "./output/project" }
-- Type-check: { command: "npx", args: ["tsc", "--noEmit"] }
-- Install deps: { command: "pip", args: ["install", "-r", "requirements.txt"] }
+For example:
+- Run code or scripts: { command: "python", args: ["./src/main.py"] }
+- Run tests or type-check: { command: "npx", args: ["tsc", "--noEmit"] }
+- Install dependencies: { command: "npm", args: ["install"] }
+- Read a file: { command: "cat", args: ["./output/project/file.md"] }
+- Append a line to a file: { command: "echo", args: ["new line", ">>", "./output/project/file.md"] }
+- Replace text in a file: { command: "sed", args: ["-i", "s/old/new/g", "./output/project/file.md"] }
+- Find text in a file: { command: "grep", args: ["-n", "pattern", "./output/project/file.md"] }
 
 Always pass arguments via the 'args' array — never embed them in the command string.
 Set 'cwd' to the output directory when running scripts that use relative paths.
 
 Security:
-- Allowlist mode when EXEC_ALLOWED_COMMANDS env is set (e.g. "python,node,npm")
+- Any command is allowed unless restricted by EXEC_ALLOWED_COMMANDS env var
 - Dangerous patterns (rm -rf /, dd, mkfs, curl|sh, etc.) are always blocked
 - cwd is restricted to the project directory and ./output
 - Default timeout: 30s. Hard kill at timeout + 10s.
@@ -322,7 +334,3 @@ Security:
     }
   },
 };
-
-export const commandToolDefinition: ToolDefinition<
-  typeof CommandOptionsSchema
-> = executeCommandTool;

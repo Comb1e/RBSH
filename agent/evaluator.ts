@@ -20,9 +20,7 @@ export async function runEvaluator(
   currentToolSummarization?: ToolAnalysisResult[],
   outputDir?: string
 ): Promise<AgentCompletionResult> {
-  console.log("\n╔══════════════════════════════╗");
-  console.log("║  EVALUATOR AGENT             ║");
-  console.log("╚══════════════════════════════╝\n");
+  console.log(`\n[EVALUATOR]`);
 
   const agentMessages = await getEvaluatorPrompt(
     task,
@@ -37,7 +35,8 @@ export async function runEvaluator(
     provider,
     agentMessages,
     evaluatorToolRegistry,
-    "Evaluator"
+    "Evaluator",
+    outputDir
   );
   return result;
 }

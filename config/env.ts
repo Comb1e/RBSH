@@ -19,7 +19,6 @@ const envSchema = z
     AGENT_MAX_ITERATIONS: z.coerce.number().int().positive().default(5),
     PLANNER_MAX_ITERATIONS: z.coerce.number().int().positive().default(3),
     GENERATOR_MAX_ITERATIONS: z.coerce.number().int().positive().default(5),
-    EVALUATOR_MAX_ITERATIONS: z.coerce.number().int().positive().default(3),
     AGENT_TEMPERATURE: z.coerce.number().min(0).max(2).default(0),
     ENABLE_STREAMING: z
       .string()
@@ -42,7 +41,6 @@ const envSchema = z
 
 // 3. Analyze and export (type safe+startup verification)
 export const env = envSchema.parse(process.env);
-export type EnvConfig = z.infer<typeof envSchema>;
 
 const __filename = fileURLToPath(import.meta.url);
 const __configdirname = path.dirname(__filename);

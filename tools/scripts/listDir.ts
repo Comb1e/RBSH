@@ -2,8 +2,6 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { ListDirArgs } from "@/schemas/index.js";
-import { ListDirArgsSchema } from "@/schemas/index.js";
-import type { ToolDefinition } from "@/types/index.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -69,15 +67,3 @@ async function listDir(args: ListDirArgs): Promise<ListDirResult> {
     return { success: false, error: err.message || "Unknown error." };
   }
 }
-
-export const listDirToolDefinition: ToolDefinition<typeof ListDirArgsSchema> = {
-  name: "listDir",
-  description:
-    "List all files and subdirectories in a directory. " +
-    "Use this to discover what files exist in the project. " +
-    "dirPath is relative to the project root (e.g. 'src', 'output/my-project', '.').",
-  schema: ListDirArgsSchema,
-  execute: async (args: ListDirArgs) => {
-    return await listDir(args);
-  },
-};

@@ -11,7 +11,7 @@ description: >
 
 # Excel Schema Explainer
 
-You are explaining input data to a developer. The instructions below govern how to read
+You are explaining input data to a developer in windows. The instructions below govern how to read
 a multi-sheet Excel workbook and produce a structured data dictionary.
 
 ---
@@ -85,27 +85,57 @@ output it on the **very first line** of your response in this exact format:
 
 ---
 
-## Output format
+## Output Format
 
-Structure your response as follows (repeat for each sheet):
+Your entire response must follow this exact structure. The output is written directly
+to `schema.md` — downstream agents (Planner, Generator, Evaluator) will read it.
 
-```
-### Sheet: <SheetName>
-**Role:** <FACT | DIMENSION | CONFIG | LOOKUP | OUTPUT>
-**Summary:** one or two sentences describing what this sheet represents.
+### Format rules
 
-| Column | Type | Meaning | Role | Caveats |
-|--------|------|---------|------|---------|
-| `col` | … | … | … | … |
+- **Column names and sheet names** in backticks (`` ` ``) — never translate or reformat.
+- **Unknown fields** — write `UNKNOWN`, never omit or guess confidently.
+- **Empty caveats** — write `—` (em dash), not "None" or blank.
+- **Headings** — use the exact heading text and level shown below.
 
-```
+### Structure
 
-After all sheets, add:
+<PROJECT_NAME>snake_case_project_name</PROJECT_NAME>
 
-```
-### Cross-Sheet Relationships
-- <plain-English description of each link, including join cardinality>
-```
+### Sheet: `SheetName` (ROLE)
+
+**Summary:** One sentence describing what this sheet represents and its purpose.
+
+| Column     | Type   | Meaning          | Role  | Caveats        |
+| ---------- | ------ | ---------------- | ----- | -------------- |
+| `col_name` | string | Business meaning | INPUT | —              |
+| `col_name` | number | Business meaning | KEY   | Edge case note |
+
+(repeat the block above for every sheet — one `### Sheet:` heading per sheet)
+
+## Cross-Sheet Relationships
+
+| From (sheet.column)  | To (sheet.column) | Type      | Note                              |
+| -------------------- | ----------------- | --------- | --------------------------------- |
+| `Orders.customer_id` | `Customers.id`    | partial   | Only paid orders appear in Orders |
+| `Sales.rep_id`       | `Reps.id`         | 1-to-many | Each rep handles multiple sales   |
+
+If no cross-sheet relationships exist, write "None." after the heading.
+
+## Input Files
+
+| Path                               | Description                              |
+| ---------------------------------- | ---------------------------------------- |
+| `./input_data/sales_2024.xlsx`     | Raw sales transactions for 2024          |
+| `./input_data/product_catalog.csv` | Product master data with SKUs and prices |
+
+List every file the user provided (via `--add`). Paths use `./input_data/` prefix.
+If no input files, write "None." after the heading.
+
+## Key Takeaways
+
+- 3–5 bullet points a developer must know before working with this data.
+- Include: data quality warnings, join traps, non-obvious column meanings, and
+  the most important cross-sheet relationship to watch for.
 
 ---
 

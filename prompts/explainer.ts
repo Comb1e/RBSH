@@ -87,7 +87,7 @@ export function buildColumnScaffolding(schemasJson: string): {
 }
 
 const explainerInstructions = {
-  skills: ["generator.md", "coding.md", "user_preferences.md"],
+  skills: ["explainer.md"],
 };
 
 export async function getExplainerPrompt(

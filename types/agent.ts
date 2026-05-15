@@ -19,23 +19,6 @@ export interface ScoreExtractionResult {
   status: "Pass" | "Fail";
 }
 
-export interface UnifiedAgentOptions {
-  provider: "openai"; // Dynamically select LLM provider
-  model: string; // Override default model for this call
-  tools?: string[]; // Allowlist of tool names to enable
-  taskBudget?: number; // Max tokens for this task
-  hooks?: {
-    PreToolUse?: Array<
-      (ctx: { tool_name: string; tool_input: any }) => Promise<any>
-    >;
-    PostToolUse?: Array<
-      (ctx: { tool_name: string; tool_result: any }) => Promise<any>
-    >;
-  };
-  temperature?: number;
-  maxIterations?: number;
-}
-
 export interface LLMProvider {
   complete(
     message: AgentMessage[],

@@ -73,7 +73,7 @@ The final phase MUST include `README.md` as a deliverable.
   - Every file listed in any module's Key Components must appear here.
   - The unified entry point and README.md must follow the ordering rules in Project Requirements.
   - The second-to-last item must be a final output or summary file (e.g.
-    `output/final_report.md`) that consolidates results. The harness
+    `./output/final_report.md`) that consolidates results. The harness
     displays this as FINAL OUTPUT on the console.
   - Dependency order is strict: if file B imports file A, A must come before B.
   - Minimum 4 items. If the project is trivial, list at least the entry point,

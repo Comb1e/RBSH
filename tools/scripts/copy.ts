@@ -21,13 +21,13 @@ async function copyFile(args: CopyFileArgs): Promise<{
     if (!resolvedSource.startsWith(INPUT_RAW_DIR + path.sep)) {
       return {
         success: false,
-        error: `Source path "${args.sourcePath}" resolves outside input_raw/.`,
+        error: `Source path "${args.sourcePath}" resolves outside ./input_raw/.`,
       };
     }
     if (!resolvedDest.startsWith(OUTPUT_DIR + path.sep)) {
       return {
         success: false,
-        error: `Dest path "${args.destPath}" resolves outside output/.`,
+        error: `Dest path "${args.destPath}" resolves outside ./output/.`,
       };
     }
 
@@ -35,7 +35,7 @@ async function copyFile(args: CopyFileArgs): Promise<{
     if (!fs.existsSync(resolvedSource)) {
       return {
         success: false,
-        error: `Source not found: "${args.sourcePath}" in input_raw/.`,
+        error: `Source not found: "${args.sourcePath}" in ./input_raw/.`,
       };
     }
 
@@ -74,9 +74,9 @@ async function copyFile(args: CopyFileArgs): Promise<{
 export const copyFileToolDefinition: ToolDefinition<typeof CopyFileArgsSchema> = {
   name: "copyFile",
   description:
-    "Copy a file or directory from input_raw/ to the output directory. " +
+    "Copy a file or directory from ./input_raw/ to the ./output/ directory. " +
     "Use this to bring raw data files (CSV, Excel, etc.) into the project. " +
-    "sourcePath is relative to input_raw/, destPath is relative to output/. " +
+    "sourcePath is relative to ./input_raw/, destPath is relative to ./output/. " +
     "Directories are copied recursively.",
   schema: CopyFileArgsSchema,
   execute: async (args: CopyFileArgs) => {

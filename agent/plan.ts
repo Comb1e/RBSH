@@ -41,7 +41,12 @@ export async function plan(
       }
       const target = modifyTarget || planPath;
       console.log(`[INFO] Modifying: ${target}`);
-      await runModifier(provider, command, target);
+      const result = await runModifier(provider, command, target, projectDir);
+      if (result.content.includes("[ERROR] Task did not complete")) {
+        console.warn(
+          "[WARN] Modification may not have completed. Review the output above and try a more specific command."
+        );
+      }
       continue;
     }
 

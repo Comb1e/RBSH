@@ -87,7 +87,7 @@ const FileEntrySchema = z.object({
   summary: z.string(),
 });
 
-export const ToolAnalysisResultSchema = z.object({
+const ToolAnalysisResultSchema = z.object({
   tool: z.string().optional(),
   purpose: z.string().optional().default(""),
   request: z.string().optional().default(""),

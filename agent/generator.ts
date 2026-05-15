@@ -23,13 +23,7 @@ export async function runGenerator(
   plan: string,
   outputDir?: string
 ): Promise<AgentCompletionResult> {
-  console.log("\n╔══════════════════════════════╗");
-  console.log(
-    `║  GENERATOR  (iter ${String(artifact.iterationCount).padStart(
-      2
-    )})        ║`
-  );
-  console.log("╚══════════════════════════════╝\n");
+  console.log(`\n[GENERATOR] Iteration ${String(artifact.iterationCount).padStart(2)}`);
 
   let agentMessages = await createGeneratorBaseMessage(
     artifact,
@@ -43,7 +37,8 @@ export async function runGenerator(
     provider,
     agentMessages,
     generatorToolRegistry,
-    "Generator"
+    "Generator",
+    outputDir
   );
   return result;
 }

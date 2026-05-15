@@ -1,7 +1,5 @@
 import fs from "fs/promises";
-import yaml from "js-yaml";
 import path from "path";
-import type { SkillMetadata } from "@/types/index.js";
 import { __dirname } from "@/config/env.js";
 import { parseExcelSchemaToFile } from "./read_excel.js";
 
@@ -53,21 +51,6 @@ export async function readFilesFromList(
 
   const contents = await Promise.all(promises);
   return contents;
-}
-
-export async function getSubDirectories(dirPath: string): Promise<string[]> {
-  try {
-    const entries = await fs.readdir(dirPath, { withFileTypes: true });
-
-    const directories = entries
-      .filter((entry) => entry.isDirectory())
-      .map((entry) => entry.name);
-
-    return directories;
-  } catch (error) {
-    console.error(`[ERROR] Read Folder failed: ${dirPath}`, error);
-    return [];
-  }
 }
 
 /**
@@ -191,24 +174,17 @@ export async function dataPreprocess(
     let filesToProcess: string[];
 
     if (targetFiles && targetFiles.length > 0) {
-      // --add mode: find specific files by name
-      console.log(
-        `[INFO] Looking for ${targetFiles.length} specified file(s) in: ${inputDir}`
-      );
       const resolved: string[] = [];
       for (const name of targetFiles) {
         const found = await findFileByName(inputDir, name);
         if (found) {
           resolved.push(found);
-          console.log(`[INFO]   Found: ${name} → ${found}`);
         } else {
-          console.warn(`[WARN]   Not found: ${name}`);
+          console.warn(`[WARN] Not found in ${inputDir}: ${name}`);
         }
       }
       filesToProcess = resolved;
     } else {
-      // Full scan: all supported files
-      console.log(`[INFO] Starting preprocessing for directory: ${inputDir}`);
       const allFiles = await getAllFiles(inputDir);
       filesToProcess = allFiles.filter((f) => {
         const ext = path.extname(f).toLowerCase();
@@ -217,11 +193,8 @@ export async function dataPreprocess(
     }
 
     if (filesToProcess.length === 0) {
-      console.log("[INFO] No supported files found to process.");
       return [];
     }
-
-    console.log(`[INFO] Found ${filesToProcess.length} file(s). Processing...`);
 
     // Process each file in parallel
     const processingPromises = filesToProcess.map(async (filePath) => {
@@ -232,11 +205,9 @@ export async function dataPreprocess(
         if (EXCEL_EXTENSIONS.has(ext)) {
           const outputJsonPath = path.join(outputDir, `${baseName}-schema.json`);
           await parseExcelSchemaToFile(filePath, outputJsonPath);
-          console.log(`[INFO]   Excel schema: ${outputJsonPath}`);
           return { file: filePath, output: outputJsonPath, status: "success" };
         } else if (TEXT_EXTENSIONS.has(ext)) {
           const outputJsonPath = await processTextFile(filePath, outputDir);
-          console.log(`[INFO]   Text document: ${outputJsonPath}`);
           return { file: filePath, output: outputJsonPath, status: "success" };
         }
 
@@ -256,16 +227,10 @@ export async function dataPreprocess(
       }
     }
 
-    // Summarize
     const successCount = results.filter((r) => r.status === "success").length;
     const failCount = results.filter((r) => r.status === "failed").length;
-    const skipCount = results.filter((r) => r.status === "skipped").length;
 
-    console.log(`\n[INFO] Preprocessing Complete.`);
-    console.log(`   Total: ${results.length}`);
-    console.log(`   Success: ${successCount}`);
-    console.log(`   Failed: ${failCount}`);
-    if (skipCount > 0) console.log(`   Skipped: ${skipCount}`);
+    console.log(`[INFO] Preprocessed ${successCount}/${results.length} file(s)${failCount > 0 ? ` (${failCount} failed)` : ""}`);
   } catch (error) {
     console.error("[ERROR] Critical error during preprocessing:", error);
     throw error;
@@ -273,61 +238,3 @@ export async function dataPreprocess(
   return schemasPath;
 }
 
-function parseFrontmatter(content: string): SkillMetadata {
-  const match = content.match(/^---\s*\n([\s\S]*?)\n---\s*\n([\s\S]*)$/);
-  const metadata: SkillMetadata = {
-    name: "Unnamed Skill",
-    description: "No description provided.",
-    func: [],
-  };
-  if (!match) {
-    return metadata;
-  }
-
-  try {
-    const meta = yaml.load(match[1]) as any;
-    metadata.name = meta.name || "Unnamed Skill";
-    metadata.description = meta.description || "No description provided.";
-    metadata.func = meta.func || [];
-    return metadata;
-  } catch (e) {
-    console.error("[ERROR] YAML read failed:", e);
-    return metadata;
-  }
-}
-
-export async function loadSkillsMetadata(
-  skillsDir: string
-): Promise<SkillMetadata[]> {
-  const skills: SkillMetadata[] = [];
-
-  try {
-    const entries = await fs.readdir(skillsDir, { withFileTypes: true });
-    const subFolders = entries
-      .filter((entry) => entry.isDirectory())
-      .map((entry) => entry.name);
-
-    console.log(`[INFO] Find ${subFolders.length} skill folders:`, subFolders);
-
-    for (const folderName of subFolders) {
-      const skillPath = path.join(skillsDir, folderName);
-      const skillFilePath = path.join(skillPath, "SKILL.md");
-
-      try {
-        await fs.access(skillFilePath);
-        const content = await fs.readFile(skillFilePath, "utf-8");
-        const metadata = parseFrontmatter(content);
-
-        skills.push(metadata);
-      } catch (err) {
-        console.warn(
-          `[WARN] Skip ${folderName}: No SKILL.md found or read failed.`
-        );
-      }
-    }
-  } catch (error) {
-    console.error(`[ERROR] Read skills root path failed: ${skillsDir}`, error);
-  }
-
-  return skills;
-}

@@ -1,6 +1,8 @@
 import type { HandoffArtifact, AgentMessage } from "@/types/index.js";
 import type { ToolAnalysisResult } from "@/schemas/index.js";
 import { readFilesFromRecord } from "@/utils/get_params.js";
+import * as fs from "node:fs/promises";
+import * as path from "node:path";
 
 const generatorBase = {
   skills: ["generator.md", "coding.md", "user_preferences.md"],
@@ -36,6 +38,27 @@ function renderPriorContext(summaries: ToolAnalysisResult[]): string {
       }`;
 }
 
+async function buildInputFilesSection(outputDir?: string): Promise<string> {
+  const header = "=== INPUT FILES (already in input_data/) ===";
+  if (!outputDir) return `${header}\n(no project directory — input files unavailable)`;
+
+  const inputDir = path.join(outputDir, "input_data");
+  try {
+    const entries = await fs.readdir(inputDir, { withFileTypes: true });
+    const files = entries.filter((e) => e.isFile()).map((e) => `./input_data/${e.name}`);
+    if (files.length === 0) return `${header}\n(no input files — the project has no raw data)`;
+    return [
+      header,
+      "These files exist on disk and are ready to use. Reference them directly",
+      "by path. Do NOT skip tests or claim \"no data\" — the following files are available:",
+      "",
+      ...files.map((f) => `- \`${f}\``),
+    ].join("\n");
+  } catch {
+    return `${header}\n(no input_data/ directory — the project has no raw data)`;
+  }
+}
+
 export async function createGeneratorBaseMessage(
   artifact: HandoffArtifact,
   background: string,
@@ -45,6 +68,7 @@ export async function createGeneratorBaseMessage(
   outputDir?: string
 ): Promise<AgentMessage[]> {
   const basicSkills = await readFilesFromRecord(generatorBase);
+  const inputFilesSection = await buildInputFilesSection(outputDir);
   const systemPrompt = `
   === BASIC SKILLS ===
   ${basicSkills.join("\n\n")}
@@ -57,6 +81,8 @@ export async function createGeneratorBaseMessage(
   Write ALL files to this directory: ${outputDir || "./output"}
   Every file path you pass to createFileWithDirectories MUST start with this
   directory. Do not write files anywhere else.
+
+  ${inputFilesSection}
 
   === BACKGROUND ===
   ${background}

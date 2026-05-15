@@ -1,7 +1,7 @@
 import * as path from "path";
 import * as fs from "fs/promises";
 import { createProvider } from "./providers/llm.js";
-import { runGenerator, runHarness, plan, runExplainer, runPlanner } from "@/agent/index.js";
+import { runHarness, plan, runExplainer, runPlanner } from "@/agent/index.js";
 import { dataPreprocess, readFilesFromList, readFilesFromRecord, input } from "@/utils/index.js";
 import type { PlanResult } from "@/types/index.js";
 
@@ -11,7 +11,7 @@ const OUTPUT_DIR = "./output";
 
 // ── CLI argument types ──────────────────────────────────────────────────────
 
-type Command = "plan" | "execute" | "generate" | "explain";
+type Command = "plan" | "execute" | "explain";
 
 interface CliArgs {
   command: Command;
@@ -19,7 +19,7 @@ interface CliArgs {
   addFiles: string[];
 }
 
-const VALID_COMMANDS: readonly Command[] = ["plan", "execute", "generate", "explain"];
+const VALID_COMMANDS: readonly Command[] = ["plan", "execute", "explain"];
 
 // ── CLI parsing ────────────────────────────────────────────────────────────
 
@@ -59,7 +59,7 @@ function parseCliArgs(raw: string[]): CliArgs {
     );
   }
 
-  if ((command === "plan" || command === "execute" || command === "generate") && !projectName) {
+  if ((command === "plan" || command === "execute") && !projectName) {
     throw new Error(
       `The "${command}" command requires a project name.\n` +
         `Usage: npx tsx main.ts ${command} <project-name> [--add file.xlsx ...]`
@@ -233,22 +233,27 @@ async function main() {
             );
             if (copied.length > 0) {
               const schemaPath = path.join(state.projectDir, "schema.md");
+              // Remove stale ## Input Files section (may say "None." from explainer)
+              let existing = "";
               try {
-                const existing = await readFilesFromList([schemaPath]);
-                if (existing[0] && !existing[0].includes("## Input Files")) {
-                  const append =
-                    "\n\n## Input Files\n\n" +
-                    "Raw input files are available at these paths:\n\n" +
-                    copied.map((f) => `- \`${f}\``).join("\n") +
-                    "\n";
-                  await fs.appendFile(schemaPath, append, "utf-8");
-                  console.log(
-                    "[INFO] Input file locations appended to schema.md"
-                  );
-                }
-              } catch {
-                /* schema.md doesn't exist yet */
+                existing = (await readFilesFromList([schemaPath]))[0] || "";
+              } catch { /* schema.md missing */ }
+              if (existing) {
+                const cleaned = existing
+                  .replace(/^## Input Files\n[\s\S]*?(?=\n## |\n# |$)/m, "")
+                  .replace(/\n{3,}/g, "\n\n")
+                  .trim();
+                await fs.writeFile(schemaPath, cleaned, "utf-8");
               }
+              const append =
+                "\n\n## Input Files\n\n" +
+                "Raw input files are available at these paths:\n\n" +
+                copied.map((f) => `- \`${f}\``).join("\n") +
+                "\n";
+              await fs.appendFile(schemaPath, append, "utf-8");
+              console.log(
+                "[INFO] Input file locations appended to schema.md"
+              );
             }
           }
 
@@ -367,16 +372,25 @@ async function main() {
                 state.projectDir
               );
               if (copied.length > 0) {
+                const schemaPath = path.join(state.projectDir, "schema.md");
+                // Remove explainer's stale ## Input Files section (may say "None.")
+                let existing = "";
+                try {
+                  existing = (await readFilesFromList([schemaPath]))[0] || "";
+                } catch { /* schema.md missing */ }
+                if (existing) {
+                  const cleaned = existing
+                    .replace(/^## Input Files\n[\s\S]*?(?=\n## |\n# |$)/m, "")
+                    .replace(/\n{3,}/g, "\n\n")
+                    .trim();
+                  await fs.writeFile(schemaPath, cleaned, "utf-8");
+                }
                 const append =
                   "\n\n## Input Files\n\n" +
                   "Raw input files are available at these paths:\n\n" +
                   copied.map((f) => `- \`${f}\``).join("\n") +
                   "\n";
-                await fs.appendFile(
-                  path.join(state.projectDir, "schema.md"),
-                  append,
-                  "utf-8"
-                );
+                await fs.appendFile(schemaPath, append, "utf-8");
                 console.log(
                   "[INFO] Input file locations appended to schema.md"
                 );
@@ -409,38 +423,6 @@ async function main() {
               provider,
               state.planPath,
               schemaDescription,
-              state.projectDir
-            );
-            state.workType = "quit";
-          }
-          break;
-        }
-
-        // ── generate ──────────────────────────────────────────────────
-        case "generate": {
-          if (!state.planPath || !state.projectDir) {
-            console.warn("[WARN] No plan available.");
-            state.workType = "quit";
-          } else {
-            const schemaDescription = await resolveSchemaDescription(
-              state.projectDir,
-              state.inputSchemas
-            );
-            const planContents = await readFilesFromList([state.planPath]);
-            const planText = planContents[0];
-            await runGenerator(
-              provider,
-              {
-                task: planText,
-                completedSteps: [],
-                remainingSteps: [],
-                preToolSummarize: [],
-                iterationCount: 0,
-              },
-              planText,
-              schemaDescription,
-              "",
-              planText,
               state.projectDir
             );
             state.workType = "quit";

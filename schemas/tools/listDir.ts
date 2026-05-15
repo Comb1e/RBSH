@@ -6,7 +6,7 @@ export const ListDirArgsSchema = z.object({
     .min(1, "Directory path must not be empty")
     .refine((p) => !p.includes(".."), "Path must not contain '..' segments")
     .describe(
-      "Relative path to the directory (e.g. 'src' or '.' for project root). No leading slash, no '..'."
+      "Relative path to the directory (e.g. './src' or '.' for project root). No leading slash, no '..'."
     ),
 });
 

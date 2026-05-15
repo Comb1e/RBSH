@@ -150,20 +150,47 @@ Identify and expose seams — places where tests can substitute behavior:
 - Injectable random number generator or UUID generator
 - Event emitters that tests can listen to
 
-### Self-Contained Test Block
+### Inline Self-Test Block (Required)
 
-For scripts and standalone modules, include a runnable test block at the bottom (guarded so it doesn't execute on import):
+Every Python module except the entry point (`main.py`) MUST include a runnable
+`if __name__ == "__main__":` block with real test assertions — not stub function
+calls, not `# TODO`, not a comment. The block must execute actual assertions
+against the module's own functions using real data from `./input_data/`.
 
 ```python
+# Good — real assertions that execute:
 if __name__ == "__main__":
-    # Quick smoke tests — run with: python module.py
-    _test_happy_path()
-    _test_empty_input()
-    _test_invalid_type()
-    print("All smoke tests passed.")
+    loader = DataLoader("./input_data/report.xlsx")
+    df = loader.load()
+    assert len(df) > 0, "Expected non-empty dataframe"
+    assert "product_id" in df.columns, "Missing product_id column"
+    print("Tests passed.")
 ```
 
-For library code, add a comment block describing how to run the tests and what test framework is expected.
+```python
+# Bad — stub calls to undefined functions (FORBIDDEN):
+if __name__ == "__main__":
+    _test_happy_path()       # undefined!
+    _test_empty_input()      # undefined!
+    print("All smoke tests passed.")  # liar output
+```
+
+```python
+# Bad — comment-only (FORBIDDEN):
+if __name__ == "__main__":
+    # TODO: add tests
+    pass
+```
+
+The block must:
+- Call the module's own functions with real arguments
+- Use `assert` statements with descriptive messages
+- Load test data from `./input_data/` when applicable
+- Print a success message only after assertions pass
+
+For library code without an entry point, the `if __name__` block is still required —
+it serves as both test and usage example. A comment about testing is a placeholder.
+Placeholders are forbidden.
 
 ### Test-Friendly Interfaces
 
@@ -215,4 +242,4 @@ Before finalising any non-trivial piece of code, verify:
 - [ ] Upper bounds on loops, retries, allocations
 - [ ] Dependencies injectable (not hard-imported globals)
 - [ ] Return values (not side effects) for core logic
-- [ ] Test entry point present and documented
+- [ ] Every module (except main entry point) has an `if __name__` block with real assertions — no stub calls, no comments

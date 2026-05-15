@@ -8,6 +8,7 @@
 import { mkdir } from "fs/promises";
 import { runGenerator } from "./generator.js";
 import { runEvaluator } from "./evaluator.js";
+import { setExecuteDefaultCwd } from "../tools/scripts/exec.js";
 import type {
   HandoffArtifact,
   LLMProvider,
@@ -114,12 +115,10 @@ export async function runHarness(
   schemaDescription: string,
   outputDir: string
 ): Promise<void> {
-  console.log("═".repeat(60));
-  console.log("RBSH");
-  console.log("═".repeat(60));
+  console.log(`[HARNESS] Starting execution → ${outputDir}`);
 
   await mkdir(outputDir, { recursive: true });
-  console.log(`[INFO] Output directory: ${outputDir}`);
+  setExecuteDefaultCwd(outputDir);
 
   // 1. Read the plan
   const planContents = await readFilesFromList([planPath]);
@@ -137,7 +136,7 @@ export async function runHarness(
     steps.push("Execute plan as single step");
   }
 
-  console.log(`[INFO] Plan loaded. ${steps.length} step(s) to execute.`);
+  console.log(`[HARNESS] ${steps.length} step(s) to execute.`);
 
   // 4. Build handoff artifact
   const artifact: HandoffArtifact = {
@@ -151,9 +150,7 @@ export async function runHarness(
   // 5. Execute each step through the Generator ↔ Evaluator loop
   let result: GeneratorEvaluatorLoopCompletion = { content: "" };
   for (const step of steps) {
-    console.log(`\n${"─".repeat(60)}`);
-    console.log(`STEP: ${step}`);
-    console.log("─".repeat(60));
+    console.log(`\n[HARNESS] Step: ${step}`);
 
     artifact.remainingSteps = artifact.remainingSteps.slice(1);
 
@@ -178,9 +175,7 @@ export async function runHarness(
 
   // 5.5 Final project verification — try to run the whole project
   if (artifact.preToolSummarize.length > 0) {
-    console.log(`\n${"─".repeat(60)}`);
-    console.log("FINAL VERIFICATION: Checking project executes");
-    console.log("─".repeat(60));
+    console.log(`\n[HARNESS] Final verification — running project`);
 
     const verifyTask = [
       "ALL FILES ALREADY EXIST. DO NOT CREATE, REWRITE, OR MODIFY ANY FILES.",
@@ -216,14 +211,9 @@ export async function runHarness(
   }
 
   // 6. Final summary
-  console.log("\n" + "═".repeat(60));
-  console.log("  FINAL OUTPUT");
-  console.log("═".repeat(60));
-
   const allSummaries = artifact.preToolSummarize;
   if (allSummaries.length > 0) {
-    const fileSet = new Map<string, string>(); // path → summary
-
+    const fileSet = new Map<string, string>();
     for (const s of allSummaries) {
       if (s.files) {
         for (const f of s.files) {
@@ -239,26 +229,12 @@ export async function runHarness(
     }
 
     if (fileSet.size > 0) {
-      console.log(`\n  ${fileSet.size} file(s) created:\n`);
-      for (const [path, summary] of fileSet) {
-        console.log(`  📄 ${path}`);
-        if (summary) console.log(`     ${summary}`);
-        console.log("");
-      }
-    } else {
-      for (const s of allSummaries) {
-        if (s.text_summary) {
-          console.log(`\n  📝 ${s.purpose || "Report"}: ${s.text_summary.overview || ""}`);
-        } else if (s.result) {
-          console.log(`\n  ⚙ ${s.purpose || "Result"}: ${s.result}`);
-        } else if (s.purpose) {
-          console.log(`\n  ✓ ${s.purpose}`);
-        }
+      console.log(`\n[HARNESS] ${fileSet.size} file(s) created:`);
+      for (const [filePath, summary] of fileSet) {
+        console.log(`  ${filePath}${summary ? ` — ${summary}` : ""}`);
       }
     }
   } else {
-    console.log("\n  (No structured output — see output directory for generated files)");
+    console.log("[HARNESS] No structured output — see output directory for generated files.");
   }
-
-  console.log("═".repeat(60));
 }

@@ -5,7 +5,7 @@ import {
   UnifiedToolResult,
 } from "@/types/index.js";
 import { zodToJsonSchema } from "zod-to-json-schema";
-import { readFileToolDefinition, listDirToolDefinition } from "./scripts/index.js";
+import { readFileToolDefinition } from "./scripts/index.js";
 
 /** Maximum allowed size for a single tool call argument string (1MB). */
 const MAX_ARG_SIZE = 1024 * 1024;
@@ -13,49 +13,7 @@ const MAX_ARG_SIZE = 1024 * 1024;
 /** Tools available to every agent role. */
 export const commonTools: ToolRegistry = {
   readFile: readFileToolDefinition,
-  listDir: listDirToolDefinition,
 };
-
-function formatToolSummary(
-  name: string,
-  args: Record<string, unknown>,
-  result: unknown,
-): string {
-  const resultObj = result as Record<string, unknown> | undefined;
-  const status = resultObj?.success === false ? "FAILED" : "OK";
-  switch (name) {
-    case "readFile": {
-      const path = String(args.filePath ?? "?");
-      return `read ${path} (${status})`;
-    }
-    case "listDir": {
-      const path = String(args.dirPath ?? "?");
-      return `list ${path} (${status})`;
-    }
-    case "createFileWithDirectories": {
-      const path = String(args.filePath ?? "?");
-      return `create ${path} (${status})`;
-    }
-    case "copyFile": {
-      const src = String(args.sourcePath ?? "?");
-      const dest = String(args.destPath ?? "?");
-      return `copy ${src} → ${dest} (${status})`;
-    }
-    case "executeCommand": {
-      const cmd = String(args.command ?? "?");
-      const argv = Array.isArray(args.args) ? (args.args as string[]).join(" ") : "";
-      const data = (resultObj?.data ?? {}) as Record<string, unknown>;
-      const stderrLen = typeof data?.stderr === "string" ? (data.stderr as string).length : 0;
-      const diag = data?.diagnostics as { errors?: string[] } | undefined;
-      const parts = [`run ${cmd} ${argv} (${status})`.trim()];
-      if (stderrLen > 0) parts.push(`stderr:${stderrLen}chars`);
-      if (diag?.errors?.length) parts.push(`errors_in_output:${diag.errors.length}`);
-      return parts.join(", ");
-    }
-    default:
-      return `${status}`;
-  }
-}
 
 export function generateToolsFromRegistry(
   toolRegistry: ToolRegistry
@@ -118,10 +76,6 @@ export async function handleToolExecution(
         }
         const validatedArgs = toolDef.schema.parse(rawArgs);
         const output = await toolDef.execute(validatedArgs);
-
-        // Log to terminal so the user can see what the agent is doing
-        const summary = formatToolSummary(call.name, validatedArgs, output);
-        console.log(`[${call.name}] ${summary}`);
 
         return {
           toolCallId: call.id,

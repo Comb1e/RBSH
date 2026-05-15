@@ -59,12 +59,14 @@ function findEntryPoint(
 
 function buildAutoVerifyFailureMessage(
   entryPoint: { filePath: string; interpreter: string; args: string[] },
-  result: { exitCode: number | null; stdout: string; stderr: string; diagnostics?: { errors: string[] } }
+  result: { exitCode: number | null; stdout: string; stderr: string; diagnostics?: { errors: string[] } },
+  cwd?: string
 ): string {
+  const cwdNote = cwd ? `  (cwd: ${cwd})` : "";
   const lines = [
     "AUTO-VERIFICATION: Your entry point was executed and failed.",
     "",
-    `Command: ${entryPoint.interpreter} ${entryPoint.args.join(" ")}`,
+    `Command: ${entryPoint.interpreter} ${entryPoint.args.join(" ")}${cwdNote}`,
     `Exit code: ${result.exitCode ?? "null (killed/timed out)"}`,
   ];
   if (result.stdout) {
@@ -90,7 +92,8 @@ export async function runAgent(
   provider: LLMProvider,
   agentMessages: AgentMessage[],
   toolRegistry: Record<string, ToolDefinition>,
-  role: string
+  role: string,
+  outputDir?: string
 ): Promise<AgentCompletionResult> {
   let summarizeResults: ToolAnalysisResult[] = [];
   let allExecution: UnifiedToolResult[] = [];
@@ -105,8 +108,7 @@ export async function runAgent(
     // Check toolCalls
     if (toolCalls != undefined && toolCalls.length > 0) {
       console.log(
-        `\n[INFO] ${role} made tool call(s):`,
-        toolCalls.map((t) => t.name).join(", ")
+        `[${role}] ${toolCalls.map((t) => t.name).join(", ")}`
       );
       const executionResults = await handleToolExecution(
         toolCalls,
@@ -121,10 +123,9 @@ export async function runAgent(
       allExecution.push(...executionResults);
 
       executionResults.forEach((res) => {
-        console.log(
-          `[TOOL ${res.status.toUpperCase()}] ${res.name}:`,
-          res.status === "success" ? "OK" : res.result
-        );
+        if (res.status !== "success") {
+          console.log(`[TOOL FAIL] ${res.name}: ${res.result}`);
+        }
         const toolUseStr: string =
           res.status === "success"
             ? `
@@ -156,14 +157,18 @@ export async function runAgent(
           const summarization = parseMultipleToolResults(ifToolCalls);
 
           // ── Auto-verification for Generator ──────────────────────────
-          if (role === "Generator") {
+          if (role === "Generator" && outputDir) {
             const allFiles = summarization.flatMap((s) => s.files ?? []);
             const entryPoint = findEntryPoint(allFiles);
             if (entryPoint) {
               try {
+                const relativePath = path.relative(outputDir, entryPoint.filePath);
                 const execResult = await executeCommand({
                   command: entryPoint.interpreter,
-                  args: entryPoint.args,
+                  args: entryPoint.args.map((a) =>
+                    a === entryPoint.filePath ? relativePath : a
+                  ),
+                  cwd: outputDir,
                   timeout: 30000,
                   shell: false,
                   maxBuffer: 10 * 1024 * 1024,
@@ -179,7 +184,8 @@ export async function runAgent(
                   );
                   const failMsg = buildAutoVerifyFailureMessage(
                     entryPoint,
-                    execResult
+                    execResult,
+                    outputDir
                   );
                   agentMessages.push({ role: "user", content: failMsg });
                   continue;

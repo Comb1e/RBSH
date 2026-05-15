@@ -15,9 +15,7 @@ export async function runPlanner(
   projectDir: string,
   schemaExplanation?: string
 ): Promise<{ planPath: string; projectDir: string }> {
-  console.log("\n╔══════════════════════════════╗");
-  console.log("║  PLANNER AGENT               ║");
-  console.log("╚══════════════════════════════╝\n");
+  console.log(`\n[PLANNER]`);
 
   const unifiedPrompt = await getPlannerPrompt(
     background,

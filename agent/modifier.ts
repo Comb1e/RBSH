@@ -10,15 +10,15 @@ import { modifierToolRegistry } from "@/tools/index.js";
 export async function runModifier(
   provider: LLMProvider,
   modificationRequest: string,
-  existingPlanLocation: string
+  existingPlanLocation: string,
+  projectDir?: string
 ): Promise<AgentCompletionResult> {
-  console.log("\n╔══════════════════════════════╗");
-  console.log("║  Modifier AGENT              ║");
-  console.log("╚══════════════════════════════╝\n");
+  console.log(`\n[MODIFIER]`);
 
   let agentMessages = await getModifierBaseMessage(
     modificationRequest,
-    existingPlanLocation
+    existingPlanLocation,
+    projectDir
   );
   const result = await runAgent(
     provider,

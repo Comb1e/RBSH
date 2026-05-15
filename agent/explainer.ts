@@ -9,13 +9,39 @@ export interface ExplainerResult {
   projectDir: string;
 }
 
+function sanitizeRaw(raw: string): string {
+  let s = raw.trim();
+
+  // Strip leading/trailing code fences around entire output
+  const fenceWrapped = s.match(/^```\w*\s*\n([\s\S]*)\n```\s*$/);
+  if (fenceWrapped) {
+    s = fenceWrapped[1].trim();
+  }
+
+  // Strip code fences around just the PROJECT_NAME tag
+  s = s.replace(
+    /```\w*\s*\n\s*(<PROJECT_NAME>[\s\S]*?<\/PROJECT_NAME>)\s*\n\s*```/gi,
+    "$1"
+  );
+
+  // Strip inline backtick wrapping (single backtick, not part of a fence)
+  s = s.replace(
+    /(?<!`)`(<PROJECT_NAME>[\s\S]*?<\/PROJECT_NAME>)`(?!`)/gi,
+    "$1"
+  );
+
+  return s.trim();
+}
+
 function extractProjectName(raw: string): string {
-  const m = raw.match(/<PROJECT_NAME>\s*([\w]+)\s*<\/PROJECT_NAME>/i);
+  const s = sanitizeRaw(raw);
+  const m = s.match(/<PROJECT_NAME>\s*([\w-]+)\s*<\/PROJECT_NAME>/i);
   return m ? m[1].trim() : "";
 }
 
 function stripProjectNameTag(raw: string): string {
-  return raw.replace(/<PROJECT_NAME>[\s\S]*?<\/PROJECT_NAME>\s*/i, "").trim();
+  const s = sanitizeRaw(raw);
+  return s.replace(/<PROJECT_NAME>[\s\S]*?<\/PROJECT_NAME>\s*/i, "").trim();
 }
 
 export async function runExplainer(
@@ -24,9 +50,7 @@ export async function runExplainer(
   userPrompt: string,
   outputDir?: string
 ): Promise<ExplainerResult> {
-  console.log("\n╔══════════════════════════════╗");
-  console.log("║  EXPLAINER AGENT             ║");
-  console.log("╚══════════════════════════════╝\n");
+  console.log(`\n[EXPLAINER]`);
 
   const agentMessages = await getExplainerPrompt(inputSchemas, userPrompt);
 

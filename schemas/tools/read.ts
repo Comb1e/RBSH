@@ -10,7 +10,7 @@ export const ReadFileArgsSchema = z.object({
     .min(1, "File path must not be empty")
     .refine((p) => !p.includes(".."), "Path must not contain '..' segments")
     .describe(
-      "Relative path to the file or directory (e.g. 'src/auth.js' or '.'). No leading slash, no '..'."
+      "Relative path to the file or directory (e.g. './src/auth.js' or '.'). No leading slash, no '..'."
     ),
   startLine: z.number().int().min(0).optional(),
   endLine: z
