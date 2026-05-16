@@ -103,3 +103,40 @@ export function extractOverallScore(text: string): ScoreExtractionResult {
     status: statusStr === "pass" ? "Pass" : "Fail",
   };
 }
+
+// ── Project-name extraction (shared by Explainer and Planner) ─────────────
+
+function sanitizeProjectNameRaw(raw: string): string {
+  let s = raw.trim();
+
+  // Strip leading/trailing code fences around entire output
+  const fenceWrapped = s.match(/^```\w*\s*\n([\s\S]*)\n```\s*$/);
+  if (fenceWrapped) {
+    s = fenceWrapped[1].trim();
+  }
+
+  // Strip code fences around just the PROJECT_NAME tag
+  s = s.replace(
+    /```\w*\s*\n\s*(<PROJECT_NAME>[\s\S]*?<\/PROJECT_NAME>)\s*\n\s*```/gi,
+    "$1"
+  );
+
+  // Strip inline backtick wrapping
+  s = s.replace(
+    /(?<!`)`(<PROJECT_NAME>[\s\S]*?<\/PROJECT_NAME>)`(?!`)/gi,
+    "$1"
+  );
+
+  return s.trim();
+}
+
+export function extractProjectName(raw: string): string {
+  const s = sanitizeProjectNameRaw(raw);
+  const m = s.match(/<PROJECT_NAME>\s*([\w-]+)\s*<\/PROJECT_NAME>/i);
+  return m ? m[1].trim() : "";
+}
+
+export function stripProjectNameTag(raw: string): string {
+  const s = sanitizeProjectNameRaw(raw);
+  return s.replace(/<PROJECT_NAME>[\s\S]*?<\/PROJECT_NAME>\s*/i, "").trim();
+}

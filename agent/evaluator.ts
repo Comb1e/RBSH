@@ -18,7 +18,8 @@ export async function runEvaluator(
   inputSchemaDescription: string,
   preCodeSummarize: ToolAnalysisResult[],
   currentToolSummarization?: ToolAnalysisResult[],
-  outputDir?: string
+  outputDir?: string,
+  taskType?: string | null
 ): Promise<AgentCompletionResult> {
   console.log(`\n[EVALUATOR]`);
 
@@ -29,7 +30,8 @@ export async function runEvaluator(
     inputSchemaDescription,
     preCodeSummarize,
     currentToolSummarization,
-    outputDir
+    outputDir,
+    taskType
   );
   const result = await runAgent(
     provider,

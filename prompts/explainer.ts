@@ -1,4 +1,4 @@
-import { readFilesFromRecord } from "@/utils/index.js";
+import { resolveSkills } from "@/utils/skills.js";
 import type { AgentMessage } from "@/types/index.js";
 
 interface SheetInfo {
@@ -103,15 +103,16 @@ const explainerInstructions = {
 
 export async function getExplainerPrompt(
   inputSchemas: string,
-  taskDescription: string
+  taskDescription: string,
+  taskType?: string | null
 ): Promise<AgentMessage[]> {
   const { scaffolding } = buildColumnScaffolding(inputSchemas);
 
-  const basicInstructions = await readFilesFromRecord(explainerInstructions);
+  const basicInstructions = await resolveSkills(explainerInstructions.skills, taskType);
 
   const systemPrompt = `
 === INSTRUCTIONS ===
-${basicInstructions}
+${basicInstructions.join("\n\n")}
 
 === PROJECT CONTEXT ===
 ${taskDescription || "(no task description provided)"}

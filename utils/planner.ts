@@ -1,10 +1,13 @@
 import * as fs from "fs";
 import * as path from "path";
 import type { ParsedPlan } from "@/types/index.js";
+import { extractProjectName } from "./output.js";
+
 // ── Response parser ───────────────────────────────────────────────────────────
 
 /**
  * Extracts and validates <FILENAME> and <MARKDOWN> from the model response.
+ * Also extracts optional <PROJECT_NAME> when present (no-input plan mode).
  * Throws a descriptive Error so the caller can feed it back to the model.
  */
 export function plannerParseResponse(raw: string): ParsedPlan {
@@ -17,6 +20,9 @@ export function plannerParseResponse(raw: string): ParsedPlan {
     );
   }
   const envelope = envelopeMatch[1];
+
+  // 1b. Optional project name (only emitted in no-input plan mode)
+  const projectName = extractProjectName(envelope) || undefined;
 
   // 2. Markdown body
   const markdownMatch = envelope.match(/<MARKDOWN>([\s\S]*?)<\/MARKDOWN>/);
@@ -85,7 +91,7 @@ export function plannerParseResponse(raw: string): ParsedPlan {
     );
   }
 
-  return { markdown };
+  return { markdown, projectName };
 }
 
 // ── Step extraction ───────────────────────────────────────────────────────────

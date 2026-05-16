@@ -15,6 +15,11 @@ import {
 } from "@/utils/output.js";
 import { parseMultipleToolResults } from "@/schemas/index.js";
 import type { ToolAnalysisResult } from "@/schemas/index.js";
+import {
+  checkForInterrupt,
+  enableInterruptCapture,
+  disableInterruptCapture,
+} from "@/utils/input.js";
 import * as path from "node:path";
 import * as fs from "node:fs/promises";
 
@@ -189,8 +194,25 @@ export async function runAgent(
   let summarizeResults: ToolAnalysisResult[] = [];
   let allExecution: UnifiedToolResult[] = [];
   let evaluatorUseStr: string[] = [];
-  for (let iter = 1; iter <= env.AGENT_MAX_ITERATIONS; iter++) {
-    // Call Agent
+  enableInterruptCapture();
+  try {
+    for (let iter = 1; iter <= env.AGENT_MAX_ITERATIONS; iter++) {
+      // ── User interrupt checkpoint ────────────────────────────────────
+      const interrupt = await checkForInterrupt();
+      if (interrupt.aborted) {
+        return {
+          content:
+            "[INTERRUPTED] Agent execution aborted by user feedback request.",
+        };
+      }
+      if (interrupt.feedback) {
+        agentMessages.push({ role: "user", content: interrupt.feedback });
+        console.log(
+          `[INFO] User feedback injected into ${role} message history.`
+        );
+      }
+
+      // Call Agent
     const completion = await provider.complete(agentMessages, toolRegistry);
     agentMessages = completion.messages;
     const content = completion.content;
@@ -346,5 +368,8 @@ export async function runAgent(
       }
     }
   }
+} finally {
+  disableInterruptCapture();
+}
   return { content: "[ERROR] Task did not complete within max iterations." };
 }

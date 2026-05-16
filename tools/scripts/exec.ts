@@ -225,6 +225,10 @@ export function executeCommand(
       stdio: ["pipe", "pipe", "pipe"],
     });
 
+    child.stdout?.setEncoding("utf8");
+    child.stderr?.setEncoding("utf8");
+    child.stdin?.setDefaultEncoding("utf8");
+
     let stdout = "";
     let stderr = "";
 
@@ -236,9 +240,8 @@ export function executeCommand(
       }
     };
 
-    child.stdout?.on("data", (data: Buffer) => {
-      const chunk = data.toString();
-      if (stdout.length + chunk.length > options.maxBuffer) {
+    child.stdout?.on("data", (data: string) => {
+      if (Buffer.byteLength(stdout) + Buffer.byteLength(data) > options.maxBuffer) {
         child.kill("SIGTERM");
         settle(() =>
           reject(
@@ -246,12 +249,11 @@ export function executeCommand(
           )
         );
       }
-      stdout += chunk;
+      stdout += data;
     });
 
-    child.stderr?.on("data", (data: Buffer) => {
-      const chunk = data.toString();
-      if (stderr.length + chunk.length > options.maxBuffer) {
+    child.stderr?.on("data", (data: string) => {
+      if (Buffer.byteLength(stderr) + Buffer.byteLength(data) > options.maxBuffer) {
         child.kill("SIGTERM");
         settle(() =>
           reject(
@@ -261,7 +263,7 @@ export function executeCommand(
           )
         );
       }
-      stderr += chunk;
+      stderr += data;
     });
 
     if (options.input) {

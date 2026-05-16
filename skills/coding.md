@@ -231,6 +231,121 @@ fetchData()
 
 ---
 
+## Writing New Code Using Existing Code
+
+When the user provides existing files as context and asks for new functionality,
+do not write from scratch. Treat the existing code as the source of truth for
+conventions, interfaces, and patterns — the new code must fit in, not stand apart.
+
+### Step 1: Read Before Writing
+
+Before producing any new code, read every provided file and extract:
+
+| What to extract        | Why it matters                                                                       |
+| ---------------------- | ------------------------------------------------------------------------------------ |
+| **Naming conventions** | snake_case vs camelCase, prefixes, abbreviations in use                              |
+| **Module structure**   | Where classes, functions, and constants live; how files import each other            |
+| **Patterns in use**    | How errors are handled, how dependencies are injected, what return shapes look like  |
+| **Existing utilities** | Helper functions, base classes, shared constants that the new code should reuse      |
+| **Type signatures**    | Argument types, return types, and any data models (dataclasses, Pydantic, TypedDict) |
+
+Do not infer these from general knowledge — read what is actually there.
+
+### Step 2: Identify Reuse Points
+
+Before writing any new logic, explicitly identify:
+
+- **Functions/methods to call directly** — existing logic that already does what is needed; do not reimplement it.
+- **Base classes or mixins to extend** — if the codebase uses inheritance patterns, follow them.
+- **Shared error types to raise** — if the codebase defines custom exceptions, raise those, not generic ones.
+- **Existing data models to accept or return** — if a `User` dataclass already exists, do not define a new one.
+
+State these reuse points in a short comment at the top of the new code:
+
+```python
+# Reuses: DataLoader.load() from src/data_loader.py
+#         ValidationError from src/errors.py
+#         User model from src/models.py
+```
+
+### Step 3: Match Existing Conventions Exactly
+
+New code must be indistinguishable in style from the existing code:
+
+- **Same error handling style** — if existing code does `return None` on failure, don't raise; if it raises, don't return `None`.
+- **Same logging calls** — use the same logger name and log-level conventions already present.
+- **Same docstring format** — match Google-style, NumPy-style, or no docstrings, whichever is already used.
+- **Same import order and grouping** — stdlib, then third-party, then local; match exactly.
+- **Same type annotation style** — if the codebase uses `Optional[X]`, don't introduce `X | None` (or vice versa).
+
+### Step 4: Do Not Duplicate Existing Logic
+
+If the new feature needs something that existing code already does, call that
+code — do not rewrite it:
+
+```python
+# Bad — duplicates parsing logic that already exists in src/parser.py
+def new_feature(raw: str) -> dict:
+    lines = raw.strip().split("\n")
+    return {k: v for k, v in (line.split("=") for line in lines)}
+
+# Good — calls the existing parser
+from src.parser import parse_config
+
+def new_feature(raw: str) -> dict:
+    return parse_config(raw)
+```
+
+If existing logic is almost right but needs a small extension, extend or
+parameterise it rather than copying and modifying:
+
+```python
+# Bad — copy-paste of load() with one line changed
+def load_with_filter(path, key):
+    ...  # 20 lines copied from DataLoader.load()
+
+# Good — add an optional parameter to the existing method
+class DataLoader:
+    def load(self, filter_key: str | None = None) -> pd.DataFrame:
+        df = self._read()
+        if filter_key:
+            df = df[df["key"] == filter_key]
+        return df
+```
+
+### Step 5: Confirm Integration in the Test Block
+
+The `if __name__ == "__main__":` block for any new submodule must import and
+exercise the existing code it depends on, proving that the integration works
+end-to-end — not just that the new function runs in isolation:
+
+```python
+if __name__ == "__main__":
+    sys.path.insert(0, str(Path(__file__).parent.parent))
+
+    # Integration: exercise new code through its dependency on existing modules
+    from src.data_loader import DataLoader   # existing
+    from src.new_feature import process      # new
+
+    loader = DataLoader()
+    data = loader.load()
+    result = process(data)                   # new code consuming existing output
+    assert result is not None, "process() returned None"
+    print("Integration test passed.")
+```
+
+### Reuse Checklist
+
+Before submitting new code written against an existing codebase:
+
+- [ ] All provided files read; naming, structure, and patterns extracted
+- [ ] Existing utilities, base classes, and models identified and reused — nothing reimplemented that already exists
+- [ ] Custom exception types from the codebase used (not generic `Exception`)
+- [ ] Style matches exactly: error handling, logging, docstrings, imports, type annotations
+- [ ] New logic integrated and tested against existing code in the `if __name__` block, not just in isolation
+
+---
+
 ## Robustness Patterns
 
 ### Input Validation

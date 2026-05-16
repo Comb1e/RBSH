@@ -1,17 +1,15 @@
 import type { HandoffArtifact, AgentMessage } from "@/types/index.js";
 import type { ToolAnalysisResult } from "@/schemas/index.js";
-import { readFilesFromRecord } from "@/utils/get_params.js";
+import { resolveSkills } from "@/utils/skills.js";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 
-const generatorBase = {
-  skills: [
-    "generator.md",
-    "coding.md",
-    "execute_command.md",
-    "user_preferences.md",
-  ],
-};
+const generatorBase = [
+  "generator.md",
+  "coding.md",
+  "execute_command.md",
+  "user_preferences.md",
+];
 
 function renderPriorContext(summaries: ToolAnalysisResult[]): string {
   if (!summaries.length) return "(no prior code — first iteration)";
@@ -74,9 +72,10 @@ export async function createGeneratorBaseMessage(
   inputSchemaDescription: string,
   evaluationStr: string,
   plan?: string,
-  outputDir?: string
+  outputDir?: string,
+  taskType?: string | null
 ): Promise<AgentMessage[]> {
-  const basicSkills = await readFilesFromRecord(generatorBase);
+  const basicSkills = await resolveSkills(generatorBase, taskType);
   const inputFilesSection = await buildInputFilesSection(outputDir);
   const systemPrompt = `
   === BASIC SKILLS ===

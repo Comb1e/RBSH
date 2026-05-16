@@ -14,7 +14,8 @@ export async function plan(
   projectDir: string,
   initialWorkType?: string,
   initialModifyTarget?: string,
-  schemaExplanation?: string
+  schemaExplanation?: string,
+  taskType?: string | null
 ): Promise<PlanResult> {
   console.log("[INFO] Starting plan...");
   let planPath: string = "";
@@ -41,7 +42,7 @@ export async function plan(
       }
       const target = modifyTarget || planPath;
       console.log(`[INFO] Modifying: ${target}`);
-      const result = await runModifier(provider, command, target, projectDir);
+      const result = await runModifier(provider, command, target, projectDir, taskType);
       if (result.content.includes("[ERROR] Task did not complete")) {
         console.warn(
           "[WARN] Modification may not have completed. Review the output above and try a more specific command."
@@ -69,7 +70,7 @@ export async function plan(
     console.log("[INFO] user prompt: ", userPrompt);
     console.log("[INFO] Starting planner...");
 
-    const result = await runPlanner(provider, userPrompt, inputSchemasString, projectDir, schemaExplanation);
+    const result = await runPlanner(provider, userPrompt, inputSchemasString, projectDir, schemaExplanation, taskType);
     if (result.planPath) {
       planPath = result.planPath;
       modifyTarget = planPath; // after plan, modify plan.md

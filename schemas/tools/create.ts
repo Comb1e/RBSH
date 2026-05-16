@@ -1,7 +1,6 @@
 import { z } from "zod";
 
 const bufferEncodingSchema = z.enum([
-  "ascii",
   "utf8",
   "utf-8",
   "utf16le",
@@ -9,8 +8,6 @@ const bufferEncodingSchema = z.enum([
   "ucs-2",
   "base64",
   "base64url",
-  "latin1",
-  "binary",
   "hex",
 ]);
 

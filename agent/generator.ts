@@ -21,7 +21,8 @@ export async function runGenerator(
   inputSchemaDescription: string,
   evaluationStr: string,
   plan: string,
-  outputDir?: string
+  outputDir?: string,
+  taskType?: string | null
 ): Promise<AgentCompletionResult> {
   console.log(`\n[GENERATOR] Iteration ${String(artifact.iterationCount).padStart(2)}`);
 
@@ -31,7 +32,8 @@ export async function runGenerator(
     inputSchemaDescription,
     evaluationStr,
     plan,
-    outputDir
+    outputDir,
+    taskType
   );
   const result = await runAgent(
     provider,

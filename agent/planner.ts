@@ -7,30 +7,55 @@ import type { LLMProvider, ParsedPlan } from "@/types/index.js";
 import { getPlannerPrompt } from "@/prompts/index.js";
 import { env } from "../config/env.js";
 import { plannerParseResponse, writePlanFile } from "@/utils/index.js";
+import { stripProjectNameTag } from "@/utils/output.js";
+import {
+  checkForInterrupt,
+  enableInterruptCapture,
+  disableInterruptCapture,
+} from "@/utils/input.js";
 
 export async function runPlanner(
   provider: LLMProvider,
   background: string,
   inputSchemaDescription: string,
   projectDir: string,
-  schemaExplanation?: string
+  schemaExplanation?: string,
+  taskType?: string | null
 ): Promise<{ planPath: string; projectDir: string }> {
-  console.log(`\n[PLANNER]`);
+  const needsProjectName = !projectDir;
+
+  console.log(`\n[PLANNER]${needsProjectName ? " (generating project name)" : ""}`);
 
   const unifiedPrompt = await getPlannerPrompt(
     background,
     inputSchemaDescription,
-    schemaExplanation
+    schemaExplanation,
+    needsProjectName,
+    taskType
   );
 
   let raw = "";
-  for (let iter = 1; iter <= env.PLANNER_MAX_ITERATIONS; iter++) {
-    const completion = await provider.complete(unifiedPrompt, {});
-    if (completion.content != "") {
-      raw = completion.content;
-      break;
+  enableInterruptCapture();
+  try {
+    for (let iter = 1; iter <= env.PLANNER_MAX_ITERATIONS; iter++) {
+      const interrupt = await checkForInterrupt();
+      if (interrupt.aborted) {
+        console.log("[INFO] Planner interrupted by user.");
+        return { planPath: "", projectDir: "" };
+      }
+      if (interrupt.feedback) {
+        unifiedPrompt.push({ role: "user", content: interrupt.feedback });
+      }
+
+      const completion = await provider.complete(unifiedPrompt, {});
+      if (completion.content != "") {
+        raw = completion.content;
+        break;
+      }
+      console.log("[WARN] Planner returned empty content; retrying...");
     }
-    console.log("[WARN] Planner returned empty content; retrying...");
+  } finally {
+    disableInterruptCapture();
   }
   if (raw == "") {
     console.warn(
@@ -41,8 +66,18 @@ export async function runPlanner(
 
   try {
     const plan: ParsedPlan = plannerParseResponse(raw);
-    const planPath = writePlanFile("plan.md", plan.markdown, projectDir);
-    return { planPath, projectDir };
+    let markdown = plan.markdown;
+    let resolvedDir = projectDir;
+
+    if (needsProjectName) {
+      const name = plan.projectName || "untitled";
+      resolvedDir = `./output/${name}`;
+      markdown = stripProjectNameTag(markdown);
+      console.log(`[INFO] Planner generated project name: ${name}`);
+    }
+
+    const planPath = writePlanFile("plan.md", markdown, resolvedDir);
+    return { planPath, projectDir: resolvedDir };
   } catch {
     console.warn(
       "Planner validation failed — response did not match required plan format."

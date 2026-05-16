@@ -1,10 +1,13 @@
 import type { AgentMessage } from "@/types/index.js";
-import { readFilesFromRecord } from "@/utils/get_params.js";
+import { resolveSkills } from "@/utils/skills.js";
+
+const modifierBase = ["modifier.md", "execute_command.md"];
 
 export async function getModifierBaseMessage(
   modificationRequest: string,
   existingPlanLocation: string,
-  projectDir?: string
+  projectDir?: string,
+  taskType?: string | null
 ): Promise<AgentMessage[]> {
   const isSchema = existingPlanLocation.includes("schema.md");
   const isPlan = existingPlanLocation.includes("plan.md");
@@ -13,9 +16,7 @@ export async function getModifierBaseMessage(
 
   let basicSkills: string[] = [];
   if (isPlan) {
-    basicSkills = await readFilesFromRecord({
-      skills: ["modifier.md", "execute_command.md"],
-    });
+    basicSkills = await resolveSkills(modifierBase, taskType);
   }
 
   const systemPrompt = `

@@ -22,6 +22,11 @@ import {
   extractOverallScore,
   extractStepsFromPlan,
 } from "@/utils/index.js";
+import {
+  checkForInterrupt,
+  enableInterruptCapture,
+  disableInterruptCapture,
+} from "@/utils/input.js";
 
 // ---------------------------------------------------------------------------
 // Generator ↔ Evaluator loop
@@ -33,15 +38,31 @@ async function generatorEvaluatorLoop(
   artifact: HandoffArtifact,
   schemaDescription: string,
   plan: string,
-  outputDir: string
+  outputDir: string,
+  taskType?: string | null
 ): Promise<GeneratorEvaluatorLoopCompletion> {
   let evaluationStr: string = "";
   let bestDraft: string = "";
   let bestToolSummarization: ToolAnalysisResult[] | undefined;
   let bestScore = -1;
 
-  for (let iter = 1; iter <= env.GENERATOR_MAX_ITERATIONS; iter++) {
+  enableInterruptCapture();
+  try {
+    for (let iter = 1; iter <= env.GENERATOR_MAX_ITERATIONS; iter++) {
     artifact.iterationCount = iter;
+
+    // ── User interrupt checkpoint ──────────────────────────────────────
+    const interrupt = await checkForInterrupt();
+    if (interrupt.aborted) {
+      console.log("[INFO] Generator-Evaluator loop interrupted by user.");
+      return { content: "", toolSummarization: [] };
+    }
+    if (interrupt.feedback) {
+      evaluationStr += `\n\n[USER FEEDBACK]\n${interrupt.feedback}`;
+      console.log(
+        "[INFO] User feedback appended to evaluation context for next iteration."
+      );
+    }
 
     // --- Generate ---
     const generatorCompletion = await runGenerator(
@@ -51,7 +72,8 @@ async function generatorEvaluatorLoop(
       schemaDescription,
       evaluationStr,
       plan,
-      outputDir
+      outputDir,
+      taskType
     );
     const draft = generatorCompletion.content;
     const toolSummarization = generatorCompletion.toolSummarization;
@@ -65,7 +87,8 @@ async function generatorEvaluatorLoop(
       schemaDescription,
       artifact.preToolSummarize,
       toolSummarization,
-      outputDir
+      outputDir,
+      taskType
     );
 
     const scoreResult: ScoreExtractionResult = extractOverallScore(
@@ -98,6 +121,9 @@ async function generatorEvaluatorLoop(
       );
     }
   }
+} finally {
+  disableInterruptCapture();
+}
 
   console.warn(
     `\n[WARN] Max iterations (${env.GENERATOR_MAX_ITERATIONS}) reached. Returning best attempt (score ${bestScore}).`
@@ -113,7 +139,8 @@ export async function runHarness(
   provider: LLMProvider,
   planPath: string,
   schemaDescription: string,
-  outputDir: string
+  outputDir: string,
+  taskType?: string | null
 ): Promise<void> {
   console.log(`[HARNESS] Starting execution → ${outputDir}`);
 
@@ -163,7 +190,8 @@ export async function runHarness(
       },
       schemaDescription,
       plan,
-      outputDir
+      outputDir,
+      taskType
     );
 
     artifact.completedSteps.push(step);
@@ -202,7 +230,8 @@ export async function runHarness(
       },
       schemaDescription,
       plan,
-      outputDir
+      outputDir,
+      taskType
     );
 
     if (verifyResult.toolSummarization) {

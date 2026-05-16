@@ -18,9 +18,9 @@ There is no test suite or linter configured. `npm start` runs `npx tsx agent.ts`
 
 RBSH is a GAN-inspired **harness engineering pipeline**: a Generator produces output while an adversarial Evaluator scores it, looping until the output passes a quality threshold.
 
-### Entry point and REPL (`main.ts`)
+### Entry point and REPL (`main.ts`, `utils/input.ts`)
 
-`main.ts` parses CLI args and runs a dispatch loop (`explain` → `modify` → `plan` → `modify` → `execute` → `quit`). The `--add` flag triggers `dataPreprocess()` to extract schemas from files in `input_raw/` (Excel via `xlsx`, plain text wrapped in JSON envelopes) and write them to `output_schemas/`. Schemas are only loaded from files explicitly added via `--add` — there is no automatic bulk loading.
+`main.ts` runs a dispatch loop (`explain` → `modify` → `plan` → `modify` → `execute` → `quit`). CLI argument parsing lives in `utils/input.ts:parseCliArgs()` (types in `types/input.ts`). The `--add` flag triggers `dataPreprocess()` to extract schemas from files in `input_raw/` (Excel via `xlsx`, plain text wrapped in JSON envelopes) and write them to `output_schemas/`. Schemas are only loaded from files explicitly added via `--add` — there is no automatic bulk loading.
 
 ### Explain phase (`agent/explainer.ts`)
 
@@ -48,6 +48,16 @@ When the role is `"Generator"` and an output directory is set, `runAgent` perfor
 1. **Type-check** — runs `npx tsc --noEmit` if `.ts`/`.tsx` files and a `tsconfig.json` are present (skipped otherwise)
 2. **Execution** — finds the entry point (preferring `main.*`, `index.*`, etc.) and runs it
 If either fails, the error is injected back into the agent messages and the loop continues — the Generator must fix the issue before completing.
+
+### Interactive interrupt (`utils/input.ts`)
+
+Press **`Esc`** during any agent execution (Generator, Evaluator, Explainer, Planner, Modifier) to pause the agent at the next iteration boundary. The terminal prompts `feedback> `:
+
+- Type feedback + Enter → injected as a user message into the agent's message history, agent resumes
+- Enter (empty) → resume without changes
+- `q` + Enter → abort the agent and return to the REPL
+
+Implementation: `enableInterruptCapture()` sets stdin raw mode and listens for Escape via `readline.emitKeypressEvents()`. `checkForInterrupt()` is called at the top of each agent loop iteration — it suspends raw mode, runs the `input()` prompt, and returns `{ aborted, feedback }`. All agent loops (`runAgent`, `generatorEvaluatorLoop`, `runPlanner`, `runExplainer`) are wrapped in `try { ... } finally { disableInterruptCapture() }` to guarantee stdin is restored. The SIGINT handler also calls `disableInterruptCapture()` before exit. All raw-mode calls are guarded by `process.stdin.isTTY` — the feature is a no-op in CI/piped environments.
 
 ### LLM provider (`providers/`)
 

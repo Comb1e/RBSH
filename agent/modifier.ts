@@ -11,14 +11,16 @@ export async function runModifier(
   provider: LLMProvider,
   modificationRequest: string,
   existingPlanLocation: string,
-  projectDir?: string
+  projectDir?: string,
+  taskType?: string | null
 ): Promise<AgentCompletionResult> {
   console.log(`\n[MODIFIER]`);
 
   let agentMessages = await getModifierBaseMessage(
     modificationRequest,
     existingPlanLocation,
-    projectDir
+    projectDir,
+    taskType
   );
   const result = await runAgent(
     provider,

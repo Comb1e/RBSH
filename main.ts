@@ -2,72 +2,19 @@ import * as path from "path";
 import * as fs from "fs/promises";
 import { createProvider } from "./providers/llm.js";
 import { runHarness, plan, runExplainer, runPlanner } from "@/agent/index.js";
-import { dataPreprocess, readFilesFromList, readFilesFromRecord, input } from "@/utils/index.js";
+import {
+  dataPreprocess,
+  readFilesFromList,
+  readFilesFromRecord,
+  input,
+  parseCliArgs,
+} from "@/utils/index.js";
 import type { PlanResult } from "@/types/index.js";
+import { classifyTaskType } from "@/taskTypes/classifier.js";
 
 const INPUT_RAW_DIR = "./input_raw";
 const OUTPUT_SCHEMAS_DIR = "./output_schemas";
 const OUTPUT_DIR = "./output";
-
-// ── CLI argument types ──────────────────────────────────────────────────────
-
-type Command = "plan" | "execute" | "explain";
-
-interface CliArgs {
-  command: Command;
-  projectName?: string;
-  addFiles: string[];
-}
-
-const VALID_COMMANDS: readonly Command[] = ["plan", "execute", "explain"];
-
-// ── CLI parsing ────────────────────────────────────────────────────────────
-
-function parseCliArgs(raw: string[]): CliArgs {
-  const addFiles: string[] = [];
-  const positional: string[] = [];
-
-  let i = 0;
-  while (i < raw.length) {
-    if (raw[i] === "--add") {
-      i++;
-      while (i < raw.length && !raw[i].startsWith("--")) {
-        addFiles.push(raw[i++]);
-      }
-    } else {
-      positional.push(raw[i++]);
-    }
-  }
-
-  let command: Command;
-  let projectName: string | undefined;
-
-  if (positional[0] && !(VALID_COMMANDS as readonly string[]).includes(positional[0])) {
-    // First positional is not a command — treat as project name, default to explain
-    command = "explain";
-    projectName = positional[0];
-  } else {
-    command = (positional[0] || "explain") as Command;
-    projectName = positional[1];
-  }
-
-  if (!(VALID_COMMANDS as readonly string[]).includes(command)) {
-    throw new Error(
-      `Unknown command: "${command}". Valid commands: ${VALID_COMMANDS.join(
-        ", "
-      )}.`
-    );
-  }
-
-  if ((command === "plan" || command === "execute") && !projectName) {
-    throw new Error(
-      `The "${command}" command requires a project name.\n` +
-        `Usage: npx tsx main.ts ${command} <project-name> [--add file.xlsx ...]`
-    );
-  }
-
-  return { command, projectName, addFiles };
-}
 
 // ── helpers ─────────────────────────────────────────────────────────────────
 
@@ -151,6 +98,7 @@ interface ReplState {
   projectDir: string;
   modifyTarget: string;
   inputSchemas: string[];
+  taskType: string | null;
 }
 
 // ── main ────────────────────────────────────────────────────────────────────
@@ -165,6 +113,7 @@ async function main() {
     projectDir: cli.projectName ? projectDirFromName(cli.projectName) : "",
     modifyTarget: "",
     inputSchemas: [],
+    taskType: null,
   };
 
   if (state.projectDir) {
@@ -174,6 +123,31 @@ async function main() {
 
   const provider = createProvider();
   state.inputSchemas = await addFiles(cli.addFiles, []);
+
+  // ── Task type classification ────────────────────────────────────────────
+  try {
+    const prompts = await readFilesFromRecord({
+      prompts: ["user_prompt.md"],
+    });
+    const userPrompt = prompts.join("\n");
+    if (userPrompt) {
+      state.taskType = await classifyTaskType(provider, userPrompt);
+    }
+  } catch {
+    // No user_prompt.md — proceed without task type
+  }
+
+  // ── No-input shortcut: skip explain when no project name and no files ──
+  if (
+    state.workType === "explain" &&
+    !state.projectDir &&
+    cli.addFiles.length === 0
+  ) {
+    console.log(
+      "[INFO] No input provided — skipping explain, entering plan mode."
+    );
+    state.workType = "plan";
+  }
 
   // ── Phase detection: skip to appropriate phase if project exists ────────
   if (
@@ -195,9 +169,7 @@ async function main() {
       state.workType = "modify";
       state.modifyTarget = planMdPath;
     } else if (hasSchema) {
-      console.log(
-        `[INFO] Found schema.md — resuming at schema modification.`
-      );
+      console.log(`[INFO] Found schema.md — resuming at schema modification.`);
       state.workType = "modify";
       state.modifyTarget = schemaMdPath;
     }
@@ -237,7 +209,9 @@ async function main() {
               let existing = "";
               try {
                 existing = (await readFilesFromList([schemaPath]))[0] || "";
-              } catch { /* schema.md missing */ }
+              } catch {
+                /* schema.md missing */
+              }
               if (existing) {
                 const cleaned = existing
                   .replace(/^## Input Files\n[\s\S]*?(?=\n## |\n# |$)/m, "")
@@ -251,9 +225,7 @@ async function main() {
                 copied.map((f) => `- \`${f}\``).join("\n") +
                 "\n";
               await fs.appendFile(schemaPath, append, "utf-8");
-              console.log(
-                "[INFO] Input file locations appended to schema.md"
-              );
+              console.log("[INFO] Input file locations appended to schema.md");
             }
           }
 
@@ -276,7 +248,8 @@ async function main() {
             state.projectDir,
             prevWorkType === "modify" ? "modify" : undefined,
             prevWorkType === "modify" ? state.modifyTarget : undefined,
-            schemaExplanation
+            schemaExplanation,
+            state.taskType
           );
 
           // Auto-plan: when user types 'p' from modify mode, run planner directly
@@ -313,7 +286,8 @@ async function main() {
               userPrompt,
               JSON.stringify(state.inputSchemas),
               state.projectDir,
-              schemaCtx
+              schemaCtx,
+              state.taskType
             );
 
             if (planResult.planPath) {
@@ -348,7 +322,9 @@ async function main() {
           // Auto-read user_prompt.md for project context
           let userPrompt = "";
           try {
-            const prompts = await readFilesFromRecord({ prompts: ["user_prompt.md"] });
+            const prompts = await readFilesFromRecord({
+              prompts: ["user_prompt.md"],
+            });
             userPrompt = prompts.join("\n");
             console.log("[INFO] Read user_prompt.md for project context.");
           } catch {
@@ -359,7 +335,8 @@ async function main() {
             provider,
             JSON.stringify(state.inputSchemas),
             userPrompt,
-            state.projectDir || undefined
+            state.projectDir || undefined,
+            state.taskType
           );
 
           if (result.schemaPath) {
@@ -377,7 +354,9 @@ async function main() {
                 let existing = "";
                 try {
                   existing = (await readFilesFromList([schemaPath]))[0] || "";
-                } catch { /* schema.md missing */ }
+                } catch {
+                  /* schema.md missing */
+                }
                 if (existing) {
                   const cleaned = existing
                     .replace(/^## Input Files\n[\s\S]*?(?=\n## |\n# |$)/m, "")
@@ -423,7 +402,8 @@ async function main() {
               provider,
               state.planPath,
               schemaDescription,
-              state.projectDir
+              state.projectDir,
+              state.taskType
             );
             state.workType = "quit";
           }

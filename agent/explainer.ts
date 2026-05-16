@@ -3,65 +3,51 @@ import { getExplainerPrompt, buildColumnScaffolding } from "@/prompts/explainer.
 import { mkdir, writeFile } from "fs/promises";
 import * as path from "path";
 import { env } from "../config/env.js";
+import {
+  checkForInterrupt,
+  enableInterruptCapture,
+  disableInterruptCapture,
+} from "@/utils/input.js";
+import { extractProjectName, stripProjectNameTag } from "@/utils/output.js";
 
 export interface ExplainerResult {
   schemaPath: string;
   projectDir: string;
 }
 
-function sanitizeRaw(raw: string): string {
-  let s = raw.trim();
-
-  // Strip leading/trailing code fences around entire output
-  const fenceWrapped = s.match(/^```\w*\s*\n([\s\S]*)\n```\s*$/);
-  if (fenceWrapped) {
-    s = fenceWrapped[1].trim();
-  }
-
-  // Strip code fences around just the PROJECT_NAME tag
-  s = s.replace(
-    /```\w*\s*\n\s*(<PROJECT_NAME>[\s\S]*?<\/PROJECT_NAME>)\s*\n\s*```/gi,
-    "$1"
-  );
-
-  // Strip inline backtick wrapping (single backtick, not part of a fence)
-  s = s.replace(
-    /(?<!`)`(<PROJECT_NAME>[\s\S]*?<\/PROJECT_NAME>)`(?!`)/gi,
-    "$1"
-  );
-
-  return s.trim();
-}
-
-function extractProjectName(raw: string): string {
-  const s = sanitizeRaw(raw);
-  const m = s.match(/<PROJECT_NAME>\s*([\w-]+)\s*<\/PROJECT_NAME>/i);
-  return m ? m[1].trim() : "";
-}
-
-function stripProjectNameTag(raw: string): string {
-  const s = sanitizeRaw(raw);
-  return s.replace(/<PROJECT_NAME>[\s\S]*?<\/PROJECT_NAME>\s*/i, "").trim();
-}
-
 export async function runExplainer(
   provider: LLMProvider,
   inputSchemas: string,
   userPrompt: string,
-  outputDir?: string
+  outputDir?: string,
+  taskType?: string | null
 ): Promise<ExplainerResult> {
   console.log(`\n[EXPLAINER]`);
 
-  const agentMessages = await getExplainerPrompt(inputSchemas, userPrompt);
+  const agentMessages = await getExplainerPrompt(inputSchemas, userPrompt, taskType);
 
   let raw = "";
-  for (let iter = 1; iter <= env.AGENT_MAX_ITERATIONS; iter++) {
-    const completion = await provider.complete(agentMessages, {});
-    if (completion.content && completion.content.trim() !== "") {
-      raw = completion.content;
-      break;
+  enableInterruptCapture();
+  try {
+    for (let iter = 1; iter <= env.AGENT_MAX_ITERATIONS; iter++) {
+      const interrupt = await checkForInterrupt();
+      if (interrupt.aborted) {
+        console.log("[INFO] Explainer interrupted by user.");
+        return { schemaPath: "", projectDir: "" };
+      }
+      if (interrupt.feedback) {
+        agentMessages.push({ role: "user" as const, content: interrupt.feedback });
+      }
+
+      const completion = await provider.complete(agentMessages, {});
+      if (completion.content && completion.content.trim() !== "") {
+        raw = completion.content;
+        break;
+      }
+      console.log(`[WARN] Explainer returned empty content; retrying (${iter}/${env.AGENT_MAX_ITERATIONS})…`);
     }
-    console.log(`[WARN] Explainer returned empty content; retrying (${iter}/${env.AGENT_MAX_ITERATIONS})…`);
+  } finally {
+    disableInterruptCapture();
   }
 
   if (!raw) {

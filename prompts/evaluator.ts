@@ -1,10 +1,8 @@
 import type { AgentMessage } from "@/types/index.js";
 import type { ToolAnalysisResult } from "@/schemas/index.js";
-import { readFilesFromRecord } from "@/utils/get_params.js";
+import { resolveSkills } from "@/utils/skills.js";
 
-const evaluatorBase = {
-  skills: ["evaluator.md"],
-};
+const evaluatorBase = ["evaluator.md"];
 
 function buildFileChecklist(summaries?: ToolAnalysisResult[]): string {
   if (!summaries || summaries.length === 0) return "";
@@ -49,9 +47,10 @@ export async function getEvaluatorPrompt(
   inputSchemaDescription: string,
   preCodeSummarize: ToolAnalysisResult[],
   currentToolSummarization?: ToolAnalysisResult[],
-  outputDir?: string
+  outputDir?: string,
+  taskType?: string | null
 ): Promise<AgentMessage[]> {
-  const basicSkills = await readFilesFromRecord(evaluatorBase);
+  const basicSkills = await resolveSkills(evaluatorBase, taskType);
   const fileChecklist = buildFileChecklist(currentToolSummarization);
 
   const systemPrompt = `
