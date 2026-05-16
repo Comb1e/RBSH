@@ -3,11 +3,11 @@ import { commonTools } from "./tools.js";
 import {
   createFileWithDirectoriesTool,
   commandToolDefinition,
-  copyFileToolDefinition,
+  replaceInFileToolDefinition,
 } from "./scripts/index.js";
 
 export const generatorToolRegistry: ToolRegistry = {
   ...commonTools,
   createFileWithDirectories: createFileWithDirectoriesTool,
-  executeCommand: commandToolDefinition,
+  replaceInFile: replaceInFileToolDefinition,
 };

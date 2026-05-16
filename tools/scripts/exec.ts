@@ -193,7 +193,9 @@ function scanForErrors(
 
 function isCwdSafe(cwd: string): boolean {
   const resolved = path.resolve(cwd);
-  return resolved.startsWith(PROJECT_ROOT + path.sep) || resolved === PROJECT_ROOT;
+  return (
+    resolved.startsWith(PROJECT_ROOT + path.sep) || resolved === PROJECT_ROOT
+  );
 }
 
 export function executeCommand(
@@ -220,8 +222,15 @@ export function executeCommand(
   return new Promise((resolve, reject) => {
     const child: ChildProcess = spawn(options.command, options.args ?? [], {
       cwd: cwd,
-      shell: options.shell ?? false,
-      env: { ...process.env, ...options.env },
+      shell: "powershell.exe",
+      env: {
+        ...process.env,
+        ...options.env,
+        LANG: "en_US.UTF-8",
+        LC_ALL: "en_US.UTF-8",
+        PYTHONIOENCODING: "utf-8",
+        PYTHONUTF8: "1",
+      },
       stdio: ["pipe", "pipe", "pipe"],
     });
 
@@ -241,7 +250,10 @@ export function executeCommand(
     };
 
     child.stdout?.on("data", (data: string) => {
-      if (Buffer.byteLength(stdout) + Buffer.byteLength(data) > options.maxBuffer) {
+      if (
+        Buffer.byteLength(stdout) + Buffer.byteLength(data) >
+        options.maxBuffer
+      ) {
         child.kill("SIGTERM");
         settle(() =>
           reject(
@@ -253,7 +265,10 @@ export function executeCommand(
     });
 
     child.stderr?.on("data", (data: string) => {
-      if (Buffer.byteLength(stderr) + Buffer.byteLength(data) > options.maxBuffer) {
+      if (
+        Buffer.byteLength(stderr) + Buffer.byteLength(data) >
+        options.maxBuffer
+      ) {
         child.kill("SIGTERM");
         settle(() =>
           reject(
@@ -340,18 +355,13 @@ For example:
 - Run code or scripts: { command: "python", args: ["-m", "src.main"] }
 - Run tests or type-check: { command: "npx", args: ["tsc", "--noEmit"] }
 - Install dependencies: { command: "npm", args: ["install"] }
-- Read a file: { command: "cat", args: ["./README.md"] }
-- Create a file: { command: "tee", args: ["./newfile.py"], input: "print('hello')" }
-- Append to a file: { command: "tee", args: ["-a", "./data.csv"], input: "new,row,data" }
-- Replace text in a file: { command: "sed", args: ["-i", "s/old/new/g", "./src/main.py"] }
-- Find text in a file: { command: "grep", args: ["-n", "TODO", "./src/main.py"] }
+- Read a file: { command: "Get-Content", args: ["./README.md"] }
+- Find text in a file: { command: "Select-String", args: ["-Pattern", "TODO", "./src/main.py"] }
+- Replace text in a file: { command: "(Get-Content ./src/main.py) -replace 'old','new' | Set-Content ./src/main.py", args: [] }
 
 Always pass arguments via the 'args' array — never embed them in the command string.
 
-For shell redirects (>, >>) and pipes (|), set "shell": true:
-{ command: "echo", args: ["new line", ">>", "./log.txt"], shell: true }
-When shell:true, redirect operators in args are interpreted by the shell.
-When shell:false (default), use "tee" for file writes and "tee -a" for appends.
+On Windows, the default shell is PowerShell. Simple cmdlets (Get-Content, Set-Content, Add-Content, Select-String) work with command + args. For expressions with pipes (|), put the entire expression in "command" with "args: []" — PowerShell handles the rest.
 
 Security:
 - Any command is allowed unless restricted by EXEC_ALLOWED_COMMANDS env var
@@ -359,7 +369,7 @@ Security:
 - Default timeout: 30s. Hard kill at timeout + 10s.
 - Max output buffer: 10MB
 - Sensitive info (password, token) auto-redacted
-- shell defaults to false for safe argument handling`,
+- Default shell: powershell.exe on Windows, none on Unix`,
 
   schema: CommandOptionsSchema,
 
@@ -367,6 +377,8 @@ Security:
     args: CommandOptions
   ): Promise<{
     success: boolean;
+    command?: string;
+    args?: string[];
     stdout?: string;
     stderr?: string;
     exitCode?: number | null;
@@ -403,23 +415,24 @@ Security:
               .slice(0, 500)}`
           );
         }
-        return {
-          success: false,
-          error: result.timedOut
-            ? `Command timed out after ${args.timeout}ms`
-            : `Command exited with code ${result.exitCode}`,
+        const errorDetail = {
+          command: args.command,
+          args: args.args ?? [],
           exitCode: result.exitCode,
+          timedOut: result.timedOut,
           stdout: result.stdout.slice(0, 3000),
           stderr: result.stderr.slice(0, 3000),
           diagnostics: diagErrors,
-          timedOut: result.timedOut,
           duration: result.duration,
         };
+        throw new Error(`Command failed: ${JSON.stringify(errorDetail)}`);
       }
 
       console.log(`[executeCommand] Exit 0 (${result.duration}ms)`);
       return {
         success: true,
+        command: args.command,
+        args: args.args ?? [],
         stdout: result.stdout.slice(0, 1000),
         stderr: result.stderr.slice(0, 500),
         duration: result.duration,
@@ -427,7 +440,7 @@ Security:
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       console.log(`[executeCommand] FAILED: ${message}`);
-      return { success: false, error: message };
+      throw new Error(`Command spawn failed: ${message}`);
     }
   },
 };

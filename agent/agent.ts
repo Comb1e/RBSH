@@ -12,6 +12,7 @@ import {
   extractTaskCompleteContent,
   extractSummarizationContent,
   serializeResult,
+  stripCompletionTags,
 } from "@/utils/output.js";
 import { parseMultipleToolResults } from "@/schemas/index.js";
 import type { ToolAnalysisResult } from "@/schemas/index.js";
@@ -180,6 +181,16 @@ async function runTypeCheck(
   }
 }
 
+function stripLastAssistantCompletion(messages: AgentMessage[]): void {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const msg = messages[i];
+    if (msg.role === "assistant" && msg.content) {
+      msg.content = stripCompletionTags(msg.content);
+      break;
+    }
+  }
+}
+
 export async function runAgent(
   provider: LLMProvider,
   agentMessages: AgentMessage[],
@@ -281,6 +292,7 @@ export async function runAgent(
                 role: "user",
                 content: typeCheckResult.message,
               });
+              stripLastAssistantCompletion(agentMessages);
               continue;
             }
 
@@ -320,6 +332,7 @@ export async function runAgent(
                     `\n[AUTO-VERIFY] Entry point failed (exit ${execResult.exitCode}):\n${failMsg}\n`
                   );
                   agentMessages.push({ role: "user", content: failMsg });
+                  stripLastAssistantCompletion(agentMessages);
                   continue;
                 }
                 console.log(
@@ -342,6 +355,7 @@ export async function runAgent(
                   "Fix the issue before declaring TASK_COMPLETE.",
                 ].join("\n");
                 agentMessages.push({ role: "user", content: failMsg });
+                stripLastAssistantCompletion(agentMessages);
                 continue;
               }
             }

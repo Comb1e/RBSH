@@ -19,7 +19,6 @@ export async function runModifier(
   let agentMessages = await getModifierBaseMessage(
     modificationRequest,
     existingPlanLocation,
-    projectDir,
     taskType
   );
   const result = await runAgent(

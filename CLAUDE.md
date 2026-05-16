@@ -71,7 +71,7 @@ Each agent role has its own tool registry mapping tool names to Zod-schema-valid
 - **Evaluator**: `readFile`, `executeCommand` (evaluator inspects files by reading; execution is optional since the Generator already verified)
 - **Modifier**: `readFile`, `executeCommand`, `createFileWithDirectories` (reads existing doc, writes modified doc)
 
-`executeCommand` is the general-purpose file modification tool — agents use shell commands (`cat`, `echo`, `sed`, `grep`, etc.) rather than a dedicated replace-in-file tool.
+`executeCommand` is the general-purpose file modification tool — agents use PowerShell cmdlets (`Get-Content`, `Set-Content`, `Add-Content`, `Select-String`, etc.) on Windows rather than a dedicated replace-in-file tool.
 
 Tool schemas live in `schemas/tools/`. `tools/tools.ts` handles generic tool execution and Zod-to-JSON-Schema conversion for the LLM.
 

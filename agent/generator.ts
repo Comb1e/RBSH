@@ -13,6 +13,7 @@ import type {
 import { createGeneratorBaseMessage } from "../prompts/generator.js";
 import { runAgent } from "./agent.js";
 import { generatorToolRegistry } from "@/tools/index.js";
+import * as path from "node:path";
 
 export async function runGenerator(
   provider: LLMProvider,
@@ -26,13 +27,15 @@ export async function runGenerator(
 ): Promise<AgentCompletionResult> {
   console.log(`\n[GENERATOR] Iteration ${String(artifact.iterationCount).padStart(2)}`);
 
+  const projectName = outputDir ? path.basename(outputDir) : undefined;
+
   let agentMessages = await createGeneratorBaseMessage(
     artifact,
     background,
     inputSchemaDescription,
     evaluationStr,
     plan,
-    outputDir,
+    projectName,
     taskType
   );
   const result = await runAgent(

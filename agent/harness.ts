@@ -21,6 +21,7 @@ import {
   readFilesFromList,
   extractOverallScore,
   extractStepsFromPlan,
+  formatToolCallsForNextIteration,
 } from "@/utils/index.js";
 import {
   checkForInterrupt,
@@ -110,9 +111,14 @@ async function generatorEvaluatorLoop(
     }
 
     // Only feed back the most recent evaluation; summarize prior context
+    const toolCallsSummary = formatToolCallsForNextIteration(
+      generatorCompletion.content
+    );
     evaluationStr = `
-  --- Previous attempt (score ${scoreResult.score}) ---
-  ${evaluation}
+--- Previous attempt (score ${scoreResult.score}) ---
+${toolCallsSummary}
+
+${evaluation}
       `.trim();
 
     if (iter < env.GENERATOR_MAX_ITERATIONS) {

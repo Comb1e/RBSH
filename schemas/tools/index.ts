@@ -3,3 +3,4 @@ export * from "./create.js";
 export * from "./exec.js";
 export * from "./copy.js";
 export * from "./listDir.js";
+export * from "./replace.js";

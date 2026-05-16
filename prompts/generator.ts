@@ -1,15 +1,11 @@
 import type { HandoffArtifact, AgentMessage } from "@/types/index.js";
 import type { ToolAnalysisResult } from "@/schemas/index.js";
 import { resolveSkills } from "@/utils/skills.js";
+import { getExecuteDefaultCwd } from "@/tools/scripts/exec.js";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 
-const generatorBase = [
-  "generator.md",
-  "coding.md",
-  "execute_command.md",
-  "user_preferences.md",
-];
+const generatorBase = ["generator.md", "coding.md", "user_preferences.md"];
 
 function renderPriorContext(summaries: ToolAnalysisResult[]): string {
   if (!summaries.length) return "(no prior code — first iteration)";
@@ -41,12 +37,13 @@ function renderPriorContext(summaries: ToolAnalysisResult[]): string {
       }`;
 }
 
-async function buildInputFilesSection(outputDir?: string): Promise<string> {
+async function buildInputFilesSection(): Promise<string> {
   const header = "=== INPUT FILES (already in input_data/) ===";
-  if (!outputDir)
+  const cwd = getExecuteDefaultCwd();
+  if (!cwd)
     return `${header}\n(no project directory — input files unavailable)`;
 
-  const inputDir = path.join(outputDir, "input_data");
+  const inputDir = path.join(cwd, "input_data");
   try {
     const entries = await fs.readdir(inputDir, { withFileTypes: true });
     const files = entries
@@ -72,11 +69,11 @@ export async function createGeneratorBaseMessage(
   inputSchemaDescription: string,
   evaluationStr: string,
   plan?: string,
-  outputDir?: string,
+  projectName?: string,
   taskType?: string | null
 ): Promise<AgentMessage[]> {
   const basicSkills = await resolveSkills(generatorBase, taskType);
-  const inputFilesSection = await buildInputFilesSection(outputDir);
+  const inputFilesSection = await buildInputFilesSection();
   const systemPrompt = `
   === BASIC SKILLS ===
   ${basicSkills.join("\n\n")}
@@ -86,7 +83,9 @@ export async function createGeneratorBaseMessage(
   Notice the output format!!!
 
   === OUTPUT DIRECTORY ===
-  The working directory (cwd) is already set to: ${outputDir || "./output"}
+  The working directory (cwd) is already set to the project directory${
+    projectName ? ` ("${projectName}")` : ""
+  }.
   All paths in createFileWithDirectories and executeCommand are relative to this
   directory. Do NOT prefix paths with the output directory path.
 
@@ -137,7 +136,8 @@ export async function createGeneratorBaseMessage(
   (These files exist on disk. Import and call them directly.
       When the current task requires changes to these files —
       add a function, fix an import, update a constant — use
-      executeCommand with sed/tee to surgically edit them.
+      replaceInFile for exact-text replacements (preferred) or
+      executeCommand with Add-Content for appending lines.
       Do NOT recreate the entire file from scratch.)
   ───────────────────────────────────────────────────────
   ${renderPriorContext(artifact.preToolSummarize)}

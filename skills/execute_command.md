@@ -22,7 +22,7 @@
 
 **Required**: `command`
 **Optional**: all other fields
-**Defaults**: `shell: false`, `timeout: 30 000 ms`, `maxBuffer: 10 MB`
+**Defaults**: `shell: powershell.exe` on Windows, `false` on Unix; `timeout: 30 000 ms`; `maxBuffer: 10 MB`
 
 ---
 
@@ -30,7 +30,7 @@
 
 ### 1. Arguments always go in `args`
 
-Never embed arguments in the `command` string. The tool spawns with `shell: false` by default, so shell parsing does not apply.
+Never embed arguments in the `command` string. The tool spawns the command directly; arguments must be in the `args` array.
 
 ```jsonc
 // CORRECT
@@ -40,9 +40,13 @@ Never embed arguments in the `command` string. The tool spawns with `shell: fals
 { "command": "python -m src.main --verbose" }
 ```
 
-### 2. Never enable `shell: true` unless strictly required
+### 2. Shell mode
 
-Shell mode exposes the full shell pipeline to injection. Prefer passing arguments via `args`. If a pipeline is genuinely necessary (`command1 | command2`), enable `shell: true` and pass the full command as a single string — but treat this as an escalation requiring justification.
+On Windows, the default shell is PowerShell (`powershell.exe`). This allows PowerShell cmdlets (Get-Content, Select-String, Set-Content, Add-Content) to work directly.
+
+On Unix, `shell` defaults to `false`. If a pipeline is genuinely necessary, set `shell: true`.
+
+For complex PowerShell expressions with pipes, put the entire expression in `command` with `args: []`. The default PowerShell shell handles the rest — no need to invoke `powershell` explicitly.
 
 ### 3. Do not call `shell: true` + dangerous patterns
 
@@ -118,7 +122,7 @@ When a soft-timeout fires (default 30 s), the process receives `SIGTERM`. Ten se
 
 | Task type                          | Recommended timeout  |
 | ---------------------------------- | -------------------- |
-| File read / grep / sed             | Default (30 s)       |
+| File read / Select-String / replace | Default (30 s)       |
 | Test suite (unit)                  | 60 000 ms            |
 | Full build or compile              | 120 000 – 300 000 ms |
 | Dependency installation (npm, pip) | 120 000 ms           |
@@ -151,38 +155,33 @@ The `maxBuffer` default (10 MB) covers most outputs. If a script produces large 
 ### Read a file
 
 ```jsonc
-{ "command": "cat", "args": ["./README.md"] }
+{ "command": "Get-Content", "args": ["./README.md"] }
 ```
 
-### Create a file (small content)
-
-```jsonc
-{ "command": "tee", "args": ["./config.json"], "input": "{ \"port\": 8080 }\n" }
-```
-
-`createFileWithDirectories` is the primary tool for creating files. Use `executeCommand` with `tee` for quick single-line or snippet writes when you don't need to create parent directories.
-
-### Append a line to a file
-
-```jsonc
-{ "command": "tee", "args": ["-a", "./log.txt"], "input": "2025-01-01 00:00:00 INFO Server started\n" }
-```
-
-The `-a` flag tells `tee` to append instead of overwrite. Use this for adding lines to existing files.
+Prefer the `readFile` tool for reading files. Use `Get-Content` when you need to pipe file content into another command.
 
 ### Find a string in a file
 
 ```jsonc
-{ "command": "grep", "args": ["-n", "TODO", "./src/main.py"] }
+{ "command": "Select-String", "args": ["-Pattern", "TODO", "./src/main.py"] }
 ```
 
 ### In-place text substitution
 
+Prefer the `replaceInFile` tool for surgical text replacements. It handles exact-string matching,
+uniqueness validation, and proper utf8 encoding.
+
+Only use `executeCommand` with PowerShell for text substitution when a regex pattern is genuinely
+needed (e.g., renaming a variable across many files):
+
 ```jsonc
 {
-  "command": "sed",
-  "args": ["-i", "s/localhost/0.0.0.0/g", "./config.json"]
+  "command": "(Get-Content ./config.json) -replace 'localhost','0.0.0.0' | Set-Content ./config.json",
+  "args": []
 }
+```
+
+For simple file creation or appending, use `createFileWithDirectories` instead of `executeCommand`.
 ```
 
 ### Pass an environment variable

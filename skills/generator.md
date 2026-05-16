@@ -49,17 +49,27 @@ Two paths exist. Choose before writing anything.
                                 (max 5 iterations; escalate if still failing)
 ```
 
-| Phase             | Action                                                                                                                                                                                                                                                                                                                                                                                                                                                        | Gate to advance                                                             |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| **B1 Pre-flight** | (1) Read all `[DONE]` step outputs with `readFile` — never guess signatures. (2) Confirm input files via `=== INPUT FILES ===`. (3) Note all KEY INFORMATION overrides. (4) Check deps exist; install if missing.                                                                                                                                                                                                                                             | All prior interfaces confirmed; no unresolved unknowns                      |
-| **B2 Plan**       | Silent: list every file to create, its exports, and its dependencies. Identify the unified entry point. Confirm zero `[TODO]` items will be implemented.                                                                                                                                                                                                                                                                                                      | Complete file+function map; dependency order decided                        |
-| **B3 Create**     | Write dependency modules first, entry point last, README last of all. Every module (except entry point) gets a real `if __name__` self-test with `assert` statements and real input data. Use `createFileWithDirectories` for new files. Use `executeCommand` (sed/tee) to surgically edit existing files — add functions, fix imports, update constants, insert new blocks. Only use `createFileWithDirectories` to overwrite when >30% of the file changes. | All files written; every import path cross-checked against actual filenames |
-| **B4 Verify**     | (1) TypeScript only: `npx tsc --noEmit` — fix all type errors before continuing. (2) Run the entry point: check `exitCode`, `stderr`, `diagnostics.errors`. (3) On final step: also run full test suite.                                                                                                                                                                                                                                                      | `exitCode == 0`, `stderr` empty or benign, no `diagnostics.errors`          |
-| **B5 Output**     | Emit `<SUMMARIZATION>` + `<TASK_COMPLETE>` in assistant message — no tool calls.                                                                                                                                                                                                                                                                                                                                                                              | Reached only from a passing B4                                              |
-| **B6 Diagnose**   | Read the full error from `stderr` / `diagnostics.errors`. Identify the error category (see §4.2). Locate the exact file and line number. State the root cause before touching any file.                                                                                                                                                                                                                                                                       | Root cause confirmed — do not proceed to B7 on a guess                      |
-| **B7 Fix**        | Apply the minimal surgical fix (see §4.3). Verify the fix in isolation with a `-c` snippet before writing to disk. Return to **B4**.                                                                                                                                                                                                                                                                                                                          | Fix verified in isolation; no unrelated code changed                        |
+| Phase             | Action                                                                                                                                                                                                                                                                                                                                                                                                                              | Gate to advance                                                             |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| **B1 Pre-flight** | (1) Read all `[DONE]` step outputs with `readFile` — never guess signatures. (2) Confirm input files via `=== INPUT FILES ===`. (3) Note all KEY INFORMATION overrides. (4) Check deps exist; install if missing.                                                                                                                                                                                                                   | All prior interfaces confirmed; no unresolved unknowns                      |
+| **B2 Plan**       | Silent: list every file to create, its exports, and its dependencies. Identify the unified entry point. Confirm zero `[TODO]` items will be implemented.                                                                                                                                                                                                                                                                            | Complete file+function map; dependency order decided                        |
+| **B3 Create**     | Write dependency modules first, entry point last, README last of all. Every module (except entry point) gets a real `if __name__` self-test with `assert` statements and real input data. Use `createFileWithDirectories` for new files; `replaceInFile` for surgical edits.                                                                                                                                                        | All files written; every import path cross-checked against actual filenames |
+| **B4 Verify**     | (1) TypeScript only: `npx tsc --noEmit` — fix all type errors before continuing. (2) Run the entry point: check `exitCode`, `stderr`, `diagnostics.errors`. (3) On final step: also run full test suite.                                                                                                                                                                                                                            | `exitCode == 0`, `stderr` empty or benign, no `diagnostics.errors`          |
+| **B5 Output**     | Emit `<SUMMARIZATION>` + `<TASK_COMPLETE>` in assistant message — no tool calls.                                                                                                                                                                                                                                                                                                                                                    | Reached only from a passing B4                                              |
+| **B6 Diagnose**   | **Stop all tool calls.** Write a structured analysis block in the assistant message before touching anything: (1) paste the exact error line(s) from `stderr` / `diagnostics.errors`, (2) identify the error category (§4.2), (3) name the exact file and line number, (4) state the root cause in one sentence, (5) state the fix you will apply and why it resolves the root cause. Only call tools after this block is complete. | Analysis block written out in full — no tool call until then                |
+| **B7 Fix**        | Apply the minimal surgical fix (see §4.3). Verify the fix in isolation with a `-c` snippet before writing to disk. Return to **B4**.                                                                                                                                                                                                                                                                                                | Fix verified in isolation; no unrelated code changed                        |
 
 **Fix iteration limit:** If B4 fails on the 5th consecutive attempt, stop the loop. Report the error, the attempted fixes, and the remaining blocker clearly in the assistant message. Do not emit `<TASK_COMPLETE>`.
+
+**Required analysis block format (every B6 entry):**
+
+```
+ERROR:      <exact error line(s) from stderr / diagnostics.errors>
+CATEGORY:   <e.g. ImportError · SyntaxError · FileNotFoundError — see §4.2>
+LOCATION:   <file path> line <N>
+ROOT CAUSE: <one sentence — what is actually wrong>
+FIX PLAN:   <what will change and why it resolves the root cause>
+```
 
 ---
 
@@ -68,7 +78,7 @@ Two paths exist. Choose before writing anything.
 - **Never skip B1.** Guessing a prior module's function signature is the leading cause of ImportError and AttributeError failures.
 - **Never advance from B3 to B4 with unresolved `TODO` comments** in the code — placeholders are not implementations.
 - **Do NOT implement any `[TODO]` REMAINING STEP**, even partially. Lookahead only.
-- **`[DONE]` steps are complete.** Import and call their code directly. When the current task requires changes to these files — add a function, fix an import, update a constant — surgically edit them with `executeCommand` (sed/tee). Do NOT recreate the entire file from scratch or redo the step's work.
+- **`[DONE]` steps are immutable.** Extend or import; never rewrite or contradict.
 
 ---
 
@@ -223,7 +233,7 @@ When `exitCode` ≠ 0 or `diagnostics.errors` is non-empty, follow this decision
    A. ImportError / ModuleNotFoundError
       → The import path or module name is wrong.
       → readFile the failing file to confirm the actual path and module name.
-      → Fix the import line with sed-i or tee.
+      → Fix the import line with `Set-Content` or `createFileWithDirectories`.
 
    B. SyntaxError / IndentationError / TypeError (Python) / TSError (TypeScript)
       → There is a malformed expression or type mismatch on a specific line.
@@ -265,11 +275,11 @@ When `exitCode` ≠ 0 or `diagnostics.errors` is non-empty, follow this decision
 
    If the snippet fails, iterate on it until it passes. Only then apply the fix.
 
-2. **Apply with `executeCommand` for line-level changes:**
+2. **Apply with `replaceInFile` for surgical text replacements:**
 
-   - Replace text in-place: `sed -i "s/old/new/g" ./file.py`
-   - Append a line: `tee -a ./file.py` with `input`
-   - Overwrite a small file: `tee ./file.py` with `input`
+   - Replace exact text: use `replaceInFile` with `filePath`, `old_string` (the exact text to find), and `new_string` (the replacement).
+   - The `old_string` must appear exactly once in the file — the tool enforces this. If it appears multiple times, include more surrounding context to make it unique.
+   - Overwrite a small file: use `createFileWithDirectories`
 
 3. **Use `createFileWithDirectories`** only when more than ~30% of a file needs to change, or when creating a new file.
 

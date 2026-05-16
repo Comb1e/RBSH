@@ -6,7 +6,6 @@ const modifierBase = ["modifier.md", "execute_command.md"];
 export async function getModifierBaseMessage(
   modificationRequest: string,
   existingPlanLocation: string,
-  projectDir?: string,
   taskType?: string | null
 ): Promise<AgentMessage[]> {
   const isSchema = existingPlanLocation.includes("schema.md");
@@ -55,8 +54,8 @@ export async function getModifierBaseMessage(
   if (isSchema) {
     extraContext =
       "Note: The original input schema files are in the ./output_schemas/ directory. Use readFile to list and read them for reference when modifying this schema description.";
-  } else if (isPlan && projectDir) {
-    extraContext = `Note: The project's schema is at \`${projectDir}/schema.md\`. Read it with readFile if you need schema context for this modification.`;
+  } else if (isPlan) {
+    extraContext = `Note: The project's schema is at \`./schema.md\` (cwd is the project directory). Read it with readFile if you need schema context for this modification.`;
   }
 
   const userPrompt = `

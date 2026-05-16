@@ -140,3 +140,35 @@ export function stripProjectNameTag(raw: string): string {
   const s = sanitizeProjectNameRaw(raw);
   return s.replace(/<PROJECT_NAME>[\s\S]*?<\/PROJECT_NAME>\s*/i, "").trim();
 }
+
+export function stripCompletionTags(content: string): string {
+  return content
+    .replace(/<TASK_COMPLETE\b[^>]*>[\s\S]*?<\/TASK_COMPLETE>/gi, "")
+    .replace(/<SUMMARIZATION\b[^>]*>[\s\S]*?<\/SUMMARIZATION>/gi, "")
+    .trim();
+}
+
+export function formatToolCallsForNextIteration(content: string): string {
+  if (!content) return "(no tools used)";
+
+  const jsonEnd = content.lastIndexOf("]\n\n");
+  if (jsonEnd === -1) return "(no tools used)";
+
+  const jsonStr = content.slice(0, jsonEnd + 1);
+  let toolEntries: string[];
+  try {
+    toolEntries = JSON.parse(jsonStr);
+  } catch {
+    return "(could not parse tool history)";
+  }
+
+  if (!Array.isArray(toolEntries) || toolEntries.length === 0) {
+    return "(no tools used)";
+  }
+
+  const formatted = toolEntries
+    .map((entry, i) => `[${i + 1}] ${entry}`)
+    .join("\n");
+
+  return `TOOLS USED IN THIS ATTEMPT:\n${formatted}`;
+}

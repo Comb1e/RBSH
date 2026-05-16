@@ -9,6 +9,7 @@ import type { ToolAnalysisResult } from "@/schemas/index.js";
 import { getEvaluatorPrompt } from "@/prompts/index.js";
 import { evaluatorToolRegistry } from "@/tools/index.js";
 import { runAgent } from "./agent.js";
+import * as path from "node:path";
 
 export async function runEvaluator(
   provider: LLMProvider,
@@ -23,6 +24,8 @@ export async function runEvaluator(
 ): Promise<AgentCompletionResult> {
   console.log(`\n[EVALUATOR]`);
 
+  const projectName = outputDir ? path.basename(outputDir) : undefined;
+
   const agentMessages = await getEvaluatorPrompt(
     task,
     background,
@@ -30,7 +33,7 @@ export async function runEvaluator(
     inputSchemaDescription,
     preCodeSummarize,
     currentToolSummarization,
-    outputDir,
+    projectName,
     taskType
   );
   const result = await runAgent(

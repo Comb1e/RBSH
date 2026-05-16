@@ -47,7 +47,7 @@ export async function getEvaluatorPrompt(
   inputSchemaDescription: string,
   preCodeSummarize: ToolAnalysisResult[],
   currentToolSummarization?: ToolAnalysisResult[],
-  outputDir?: string,
+  projectName?: string,
   taskType?: string | null
 ): Promise<AgentMessage[]> {
   const basicSkills = await resolveSkills(evaluatorBase, taskType);
@@ -58,7 +58,7 @@ export async function getEvaluatorPrompt(
 ${basicSkills.join("\n\n")}
 
 === OUTPUT DIRECTORY ===
-All generated files live under: ${outputDir || "./output"}
+All generated files live under the project directory${projectName ? ` ("${projectName}")` : ""}.
 Every path in "## Files to Verify" is relative to this directory.
 Use the exact paths shown — do not strip or alter them.
 
